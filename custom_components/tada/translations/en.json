@@ -186,11 +186,11 @@
       "tada_annual_reference_last_365_days": "Last 365 Days Annual Reference"
     },
     "binary_sensor": {
-      "tada_period_valid_yesterday": "Period Valid (yesterday)",
-      "tada_period_reliable_yesterday": "Period Reliable (yesterday)",
-      "tada_period_full_coverage_yesterday": "Period Full Coverage (yesterday)",
-      "tada_subscription_online": "Subscription Online",
-      "tada_power_meter_ok": "Power Meter OK"
+      "tada_period_valid_yesterday": { "name": "Period Valid (yesterday)" },
+      "tada_period_reliable_yesterday": { "name": "Period Reliable (yesterday)" },
+      "tada_period_full_coverage_yesterday": { "name": "Period Full Coverage (yesterday)" },
+      "tada_subscription_online": { "name": "Subscription Online" },
+      "tada_power_meter_ok": { "name": "Power Meter OK" }
     },
     "switch": {
       "tada_summary_switch_yesterday": "Enable Summary (Yesterday)",

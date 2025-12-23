@@ -2,12 +2,12 @@
   "domain": "tada",
   "name": "Tada",
   "codeowners": ["@sginestrini"],
-  "version": "0.1.0",
-  "requirements": [],
   "config_flow": true,
   "documentation": "https://github.com/sginestrini/home-assistant-tada-integration#readme",
-  "issue_tracker": "https://github.com/sginestrini/home-assistant-tada-integration/issues",
-  "iot_class": "cloud_polling",
   "integration_type": "service",
-  "loggers": ["custom_components.tada"]
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/sginestrini/home-assistant-tada-integration/issues",
+  "loggers": ["custom_components.tada"],
+  "requirements": [],
+  "version": "0.1.0"
 }

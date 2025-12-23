@@ -184,11 +184,11 @@
       "tada_annual_reference_last_365_days": "Riferimento annuale ultimi 365 giorni"
     },
     "binary_sensor": {
-      "tada_period_valid_yesterday": "Validità periodo (ieri)",
-      "tada_period_reliable_yesterday": "Affidabilità periodo (ieri)",
-      "tada_period_full_coverage_yesterday": "Copertura completa periodo (ieri)",
-      "tada_subscription_online": "Sottoscrizione online",
-      "tada_power_meter_ok": "Contatore di potenza OK"
+      "tada_period_valid_yesterday": { "name": "Validità periodo (ieri)" },
+      "tada_period_reliable_yesterday": { "name": "Affidabilità periodo (ieri)" },
+      "tada_period_full_coverage_yesterday": { "name": "Copertura completa periodo (ieri)" },
+      "tada_subscription_online": { "name": "Sottoscrizione online" },
+      "tada_power_meter_ok": { "name": "Contatore di potenza OK" }
     },
     "switch": {
       "tada_summary_switch_yesterday": "Abilita riepilogo (Ieri)",
