@@ -1,0 +1,163 @@
+alias: Allarmi superamento potenza impegnata
+description: >
+  3 livelli di allarme sul consumo istantaneo rispetto alla potenza disponibile:
+
+  - 100%: notifica immediata (no reminder) 
+
+  - 110%: notifica immediata + reminder ogni 10 min; se persiste 2h45m invia
+  Allarme 15' 
+
+  - 133%: notifica immediata + reminder ogni 30s; se persiste 2 min invia
+  Allarme 2'
+triggers:
+  - id: trig_100
+    trigger: template
+    for: "00:00:10"
+    value_template: >
+      {% set p = states('sensor.tada_instant_power') %} {{
+      has_value('sensor.tada_instant_power') and is_number(p)
+         and (ap_w > 0)
+         and (p|float(0) > ap_w) }}
+  - id: trig_110
+    trigger: template
+    for: "00:00:10"
+    value_template: >
+      {% set p = states('sensor.tada_instant_power') %} {{
+      has_value('sensor.tada_instant_power') and is_number(p)
+         and (ap_w > 0)
+         and (p|float(0) >= ap_w * 1.10) }}
+  - id: trig_133
+    trigger: template
+    for: "00:00:10"
+    value_template: >
+      {% set p = states('sensor.tada_instant_power') %} {{
+      has_value('sensor.tada_instant_power') and is_number(p)
+         and (ap_w > 0)
+         and (p|float(0) >= ap_w * 1.33) }}
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: trig_100
+        sequence:
+          - action: notify.mobile_app_iponz_4_simone
+            data:
+              title: "Allarme: potenza raggiunta (100%)"
+              message: >
+                ⚠️ Potenza raggiunta: {{ states('sensor.tada_instant_power') }}
+                W. Soglia contrattuale: {{ ap_w|int }} W.
+          - action: persistent_notification.create
+            data:
+              title: Log allarme 100%
+              message: >-
+                Allarme 100% inviato. Valore: {{
+                states('sensor.tada_instant_power') }} W.
+      - conditions:
+          - condition: trigger
+            id: trig_110
+        sequence:
+          - variables:
+              start_ts_110: "{{ now().timestamp() }}"
+          - action: notify.mobile_app_iponz_4_simone
+            data:
+              title: "Allarme: superamento +10% (110%)"
+              message: >
+                ⚠️ Superamento +10% della potenza disponibile. Valore attuale:
+                {{ states('sensor.tada_instant_power') }} W. Se persiste 2h45m e
+                rimane tra +10% e +33% il contatore potrebbe staccare. Ti
+                invierò un promemoria ogni 10 minuti finché la condizione
+                rimane.
+          - repeat:
+              until:
+                - condition: template
+                  value_template: >
+                    {% set p = states('sensor.tada_instant_power') %} {% set
+                    valid = has_value('sensor.tada_instant_power') and
+                    is_number(p) and (ap_w > 0) %} {{ (not valid) or (p|float(0)
+                    < ap_w * 1.10) }}
+              sequence:
+                - delay: "00:10:00"
+                - condition: template
+                  value_template: >
+                    {% set p = states('sensor.tada_instant_power') %} {% set
+                    valid = has_value('sensor.tada_instant_power') and
+                    is_number(p) and (ap_w > 0) %} {{ valid
+                       and (p|float(0) >= ap_w * 1.10)
+                       and (p|float(0) <  ap_w * 1.33) }}
+                - action: notify.mobile_app_iponz_4_simone
+                  data:
+                    title: "Reminder: stato >=110%"
+                    message: >
+                      Promemoria: consumo ancora >=110% ({{
+                      states('sensor.tada_instant_power') }} W).
+                - condition: template
+                  value_template: |
+                    {{ ((now().timestamp() - start_ts_110) / 60) >= 165
+                       and ((now().timestamp() - start_ts_110) / 60) < 175 }}
+                - action: notify.mobile_app_iponz_4_simone
+                  data:
+                    title: Allarme 15' - persistenza +10% per 2h45m
+                    message: >
+                      ⚠️ Allarme 15': la richiesta è rimasta oltre il +10% per
+                      2h45m.
+                - action: persistent_notification.create
+                  data:
+                    title: Allarme 15' inviato
+                    message: Allarme 15' inviato dopo 2h45m di persistenza >=110%.
+      - conditions:
+          - condition: trigger
+            id: trig_133
+        sequence:
+          - variables:
+              start_ts_133: "{{ now().timestamp() }}"
+          - action: notify.mobile_app_iponz_4_simone
+            data:
+              title: "Allarme: superamento +33% (133%)"
+              message: >
+                🚨 Superamento +33% della potenza disponibile. Valore attuale:
+                {{ states('sensor.tada_instant_power') }} W. Se persiste 2
+                minuti il contatore potrebbe staccare. Ti invierò reminder ogni
+                30s.
+          - repeat:
+              until:
+                - condition: template
+                  value_template: >
+                    {% set p = states('sensor.tada_instant_power') %} {% set
+                    valid = has_value('sensor.tada_instant_power') and
+                    is_number(p) and (ap_w > 0) %} {{ (not valid) or (p|float(0)
+                    < ap_w * 1.33) }}
+              sequence:
+                - delay: "00:00:30"
+                - condition: template
+                  value_template: >
+                    {% set p = states('sensor.tada_instant_power') %} {% set
+                    valid = has_value('sensor.tada_instant_power') and
+                    is_number(p) and (ap_w > 0) %} {{ valid and (p|float(0) >=
+                    ap_w * 1.33) }}
+                - action: notify.mobile_app_iponz_4_simone
+                  data:
+                    title: "Reminder: stato >=133%"
+                    message: >
+                      🚨 Reminder: consumo ancora >=133% ({{
+                      states('sensor.tada_instant_power') }} W).
+                - condition: template
+                  value_template: |
+                    {{ (now().timestamp() - start_ts_133) >= 120
+                       and (now().timestamp() - start_ts_133) < 150 }}
+                - action: notify.mobile_app_iponz_4_simone
+                  data:
+                    title: Allarme 2' - persistenza +33% per 2 minuti
+                    message: >
+                      🚨 Allarme 2': la richiesta è rimasta oltre il +33% per 2
+                      minuti.
+                - action: persistent_notification.create
+                  data:
+                    title: Allarme 2' inviato
+                    message: Allarme 2' inviato dopo 2 minuti di persistenza >=133%.
+    default: []
+variables:
+  ap_w: 4500
+trigger_variables:
+  ap_w: 4500
+mode: parallel

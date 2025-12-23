@@ -1,0 +1,206 @@
+{
+  "title": "Tada",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tada Configuration",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "subscription_id": "Subscription ID",
+          "locale": "Locale"
+        }
+            ,
+            "description": "Subscription ID: open https://webapp.tada.magie-tada.com, go to dev tools network page and copy the subscription_id from any API call."
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Tada",
+        "description": "Please re-enter your credentials and subscription details.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "subscription_id": "Subscription ID",
+          "locale": "Locale"
+        }
+      }
+      ,
+      "init": {
+        "title": "Period Check Options",
+        "data": {
+          "monitor_last_week": "Monitor last week",
+          "monitor_last_7_days": "Monitor last 7 days",
+          "monitor_last_30_days": "Monitor last 30 days",
+          "monitor_last_year": "Monitor last year",
+          "monitor_last_365_days": "Monitor last 365 days",
+          "monitor_last_month": "Monitor last-month period",
+          "monitor_custom": "Monitor custom period",
+          "custom_from": "Custom period start (YYYY-MM-DD)",
+          "custom_to": "Custom period end (YYYY-MM-DD)"
+        }
+      }
+    },
+    "error": {
+      "auth_failed": "Authentication failed",
+      "invalid_date": "Invalid or missing custom date(s). Expected format: YYYY-MM-DD"
+    },
+    "abort": {
+      "reauth_successful": "Reauthentication successful"
+    }
+  }
+  ,
+  "options": {
+    "step": {
+      "init": {
+        "title": "Period Check Options",
+        "description": "Select additional periods to monitor. For custom period, provide both start and end dates. Optionally specify Appliances/Activities IDs (comma-separated) to limit summary sensors.",
+        "data": {
+          "monitor_last_week": "Monitor last week",
+          "monitor_last_7_days": "Monitor last 7 days",
+          "monitor_last_30_days": "Monitor last 30 days",
+          "monitor_last_year": "Monitor last year",
+          "monitor_last_365_days": "Monitor last 365 days",
+          "monitor_last_month": "Monitor last-month period",
+          "monitor_custom": "Monitor custom period",
+          "custom_from": "Custom period start (YYYY-MM-DD)",
+          "custom_to": "Custom period end (YYYY-MM-DD)",
+          "enabled_appliances": "Appliances monitored (IDs, comma-separated)",
+          "enabled_activities": "Activities monitored(IDs, comma-separated)"
+        }
+      }
+      ,
+      "summary": {
+        "title": "Summary Options (Appliances/Activities)",
+        "description": "Enable per-period summaries and optionally select IDs to include. Leave blank to include all available items.",
+        "data": {
+          "summary_yesterday": "Summary Yesterday",
+          "summary_last_week": "Summary Last Week",
+          "summary_last_7_days": "Summary Last 7 Days",
+          "summary_last_month": "Summary Last Month",
+          "summary_last_30_days": "Summary Last 30 Days",
+          "summary_last_year": "Summary Last Year",
+          "summary_last_365_days": "Summary Last 365 Days",
+          "summary_custom": "Summary Custom",
+          "enabled_appliances": "Appliances monitored (IDs, comma-separated)",
+          "enabled_activities": "Activities monitored (IDs, comma-separated)"
+        }
+      }
+    },
+    "error": {
+      "invalid_date": "Invalid or missing custom date(s). Expected format: YYYY-MM-DD",
+      "invalid_appliance_ids": "Invalid appliance ID list (use numbers, comma-separated)",
+      "invalid_activity_ids": "Invalid activity ID list (use numbers, comma-separated)"
+    }
+  }
+  ,
+  "entity": {
+    "sensor": {
+      "tada_yesterday_total_kwh": "Yesterday Total kWh",
+      "tada_consumption_yesterday": "Yesterday Total kWh",
+      "tada_instant_power": "Tada Instant Power",
+      "tada_grid_consumption": "Grid Consumption",
+      "tada_current_power": "Current Power",
+      "tada_available_power": "Available Power",
+      "tada_power_usage_percent": "Power Usage %",
+      "tada_max_available_power": "Max Available Power",
+      "tada_consumption_today": "Today Total kWh",
+      "tada_consumption_last_week": "Last Week Total kWh",
+      "tada_consumption_last_7_days": "Last 7 Days Total kWh",
+      "tada_consumption_last_month": "Last Month Total kWh",
+      "tada_consumption_last_30_days": "Last 30 Days Total kWh",
+      "tada_consumption_last_year": "Last Year Total kWh",
+      "tada_consumption_last_365_days": "Last 365 Days Total kWh",
+      "tada_period_reliable_yesterday": "Period Reliable (yesterday)",
+      "tada_period_full_coverage_yesterday": "Period Full Coverage (yesterday)",
+      "tada_period_coverage_start_yesterday": "Period Coverage Start (yesterday)",
+      "tada_timeband_yesterday_notte_value": "Yesterday Night Total kWh",
+      "tada_timeband_yesterday_notte_percentage": "Yesterday Night Percentage",
+      "tada_timeband_yesterday_mattina_value": "Yesterday Morning Total kWh",
+      "tada_timeband_yesterday_mattina_percentage": "Yesterday Morning Percentage",
+      "tada_timeband_yesterday_pomeriggio_value": "Yesterday Afternoon Total kWh",
+      "tada_timeband_yesterday_pomeriggio_percentage": "Yesterday Afternoon Percentage",
+      "tada_timeband_yesterday_sera_value": "Yesterday Evening Total kWh",
+      "tada_timeband_yesterday_sera_percentage": "Yesterday Evening Percentage",
+      "tada_timeband_last_week_notte_value": "Last Week Night Total kWh",
+      "tada_timeband_last_week_notte_percentage": "Last Week Night Percentage",
+      "tada_timeband_last_week_mattina_value": "Last Week Morning Total kWh",
+      "tada_timeband_last_week_mattina_percentage": "Last Week Morning Percentage",
+      "tada_timeband_last_week_pomeriggio_value": "Last Week Afternoon Total kWh",
+      "tada_timeband_last_week_pomeriggio_percentage": "Last Week Afternoon Percentage",
+      "tada_timeband_last_week_sera_value": "Last Week Evening Total kWh",
+      "tada_timeband_last_week_sera_percentage": "Last Week Evening Percentage",
+      "tada_timeband_last_7_days_notte_value": "Last 7 Days Night Total kWh",
+      "tada_timeband_last_7_days_notte_percentage": "Last 7 Days Night Percentage",
+      "tada_timeband_last_7_days_mattina_value": "Last 7 Days Morning Total kWh",
+      "tada_timeband_last_7_days_mattina_percentage": "Last 7 Days Morning Percentage",
+      "tada_timeband_last_7_days_pomeriggio_value": "Last 7 Days Afternoon Total kWh",
+      "tada_timeband_last_7_days_pomeriggio_percentage": "Last 7 Days Afternoon Percentage",
+      "tada_timeband_last_7_days_sera_value": "Last 7 Days Evening Total kWh",
+      "tada_timeband_last_7_days_sera_percentage": "Last 7 Days Evening Percentage",
+      "tada_timeband_last_month_notte_value": "Last Month Night Total kWh",
+      "tada_timeband_last_month_notte_percentage": "Last Month Night Percentage",
+      "tada_timeband_last_month_mattina_value": "Last Month Morning Total KWh",
+      "tada_timeband_last_month_mattina_percentage": "Last Month Morning Percentage",
+      "tada_timeband_last_month_pomeriggio_value": "Last Month Afternoon Total kWh",
+      "tada_timeband_last_month_pomeriggio_percentage": "Last Month Afternoon Percentage",
+      "tada_timeband_last_month_sera_value": "Last Month Evening Total kWh",
+      "tada_timeband_last_month_sera_percentage": "Last Month Evening Percentage",
+      "tada_timeband_last_30_days_notte_value": "Last 30 Days Night Total kWh",
+      "tada_timeband_last_30_days_notte_percentage": "Last 30 Days Night Percentage",
+      "tada_timeband_last_30_days_mattina_value": "Last 30 Days Morning Total kWh",
+      "tada_timeband_last_30_days_mattina_percentage": "Last 30 Days Morning Percentage",
+      "tada_timeband_last_30_days_pomeriggio_value": "Last 30 Days Afternoon Total kWh",
+      "tada_timeband_last_30_days_pomeriggio_percentage": "Last 30 Days Afternoon Percentage",
+      "tada_timeband_last_30_days_sera_value": "Last 30 Days Evening Total kWh",
+      "tada_timeband_last_30_days_sera_percentage": "Last 30 Days Evening Percentage",
+      "tada_timeband_last_year_notte_value": "Last Year Night Total kWh",
+      "tada_timeband_last_year_notte_percentage": "Last Year Night Percentage",
+      "tada_timeband_last_year_mattina_value": "Last Year Morning Total kWh",
+      "tada_timeband_last_year_mattina_percentage": "Last Year Morning Percentage",
+      "tada_timeband_last_year_pomeriggio_value": "Last Year Afternoon Total kWh",
+      "tada_timeband_last_year_pomeriggio_percentage": "Last Year Afternoon Percentage",
+      "tada_timeband_last_year_sera_value": "Last Year Evening Total kWh",
+      "tada_timeband_last_year_sera_percentage": "Last Year Evening Percentage",
+      "tada_timeband_last_365_days_notte_value": "Last 365 Days Night Total kWh",
+      "tada_timeband_last_365_days_notte_percentage": "Last 365 Days Night Percentage",
+      "tada_timeband_last_365_days_mattina_value": "Last 365 Days Morning Total kWh",
+      "tada_timeband_last_365_days_mattina_percentage": "Last 365 Days Morning Percentage",
+      "tada_timeband_last_365_days_pomeriggio_value": "Last 365 Days Afternoon Total kWh",
+      "tada_timeband_last_365_days_pomeriggio_percentage": "Last 365 Days Afternoon Percentage",
+      "tada_timeband_last_365_days_sera_value": "Last 365 Days Evening Total kWh",
+      "tada_timeband_last_365_days_sera_percentage": "Last 365 Days Evening Percentage",
+      "tada_period_reliable_last_month": "Period Reliable (last month)",
+      "tada_period_full_coverage_last_month": "Period Full Coverage (last month)",
+      "tada_period_coverage_start_last_month": "Period Coverage Start (last month)",
+      "tada_period_reliable_custom": "Period Reliable (custom)",
+      "tada_period_full_coverage_custom": "Period Full Coverage (custom)",
+      "tada_period_coverage_start_custom": "Period Coverage Start (custom)",
+      "tada_comparison_yesterday_average_percent": "Yesterday Average Comparison (%)",
+      "tada_comparison_yesterday_previous_kwh": "Yesterday Previous Comparison (kWh)",
+      "tada_comparison_last_week_average_percent": "Last Week Average Comparison (%)",
+      "tada_comparison_last_week_previous_percent": "Last Week Previous Comparison (%)",
+      "tada_annual_reference_last_month": "Last Month Annual Reference",
+      "tada_comparison_last_7_days_average_percent": "Last 7 Days Average Comparison (%)",
+      "tada_comparison_last_7_days_previous_percent": "Last 7 Days Previous Comparison (%)",
+      "tada_annual_reference_last_30_days": "Last 30 Days Annual Reference",
+      "tada_annual_reference_last_year": "Last Year Annual Reference",
+      "tada_annual_reference_last_365_days": "Last 365 Days Annual Reference"
+    },
+    "binary_sensor": {
+      "tada_period_valid_yesterday": "Period Valid (yesterday)",
+      "tada_period_reliable_yesterday": "Period Reliable (yesterday)",
+      "tada_period_full_coverage_yesterday": "Period Full Coverage (yesterday)",
+      "tada_subscription_online": "Subscription Online",
+      "tada_power_meter_ok": "Power Meter OK"
+    },
+    "switch": {
+      "tada_summary_switch_yesterday": "Enable Summary (Yesterday)",
+      "tada_summary_switch_last_week": "Enable Summary (Last week)",
+      "tada_summary_switch_last_7_days": "Enable Summary (Last 7 days)",
+      "tada_summary_switch_last_month": "Enable Summary (Last month)",
+      "tada_summary_switch_last_30_days": "Enable Summary (Last 30 days)",
+      "tada_summary_switch_last_year": "Enable Summary (Last year)",
+      "tada_summary_switch_last_365_days": "Enable Summary (Last 365 days)",
+      "tada_summary_switch_custom": "Enable Summary (Custom)"
+    }
+  }
+}
