@@ -1,11 +1,12 @@
 from __future__ import annotations
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from typing import Any, Iterable, Tuple
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import (
@@ -13,12 +14,23 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, DEVICE_NAME_BASE, DEVICE_NAME_TODAY, DEVICE_NAME_YESTERDAY, DEVICE_SUFFIX_BASE, DEVICE_SUFFIX_TODAY, DEVICE_SUFFIX_YESTERDAY
+from .const import (
+    DOMAIN,
+    DEVICE_NAME_BASE,
+    DEVICE_NAME_TODAY,
+    DEVICE_NAME_YESTERDAY,
+    DEVICE_SUFFIX_BASE,
+    DEVICE_SUFFIX_TODAY,
+    DEVICE_SUFFIX_YESTERDAY,
+    DEFAULT_QUIET_WINDOW_ENABLED,
+    DEFAULT_QUIET_WINDOW_FROM,
+    DEFAULT_QUIET_WINDOW_TO,
+)
 from .api import TadaAPI
-from .ws import TadaWSClient  # only used for typing / optional instantiation
 from .mapping import APPLIANCES_MAP, ACTIVITIES_MAP, slugify
-from .utils import _parse_ids, _present_ids_from_summary, _parse_iso_to_dt
+from .utils import _parse_ids, _present_ids_from_summary, _parse_iso_to_dt, parse_hhmm, is_time_in_range, _to_float, _round_safe
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,7 +172,7 @@ class TadaNestedValueSensor(TadaBaseSensor):
 class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
     """Sensor for today's hourly consumption data."""
 
-    def __init__(self, coordinator: DataUpdateCoordinator, subscription_id: str, device_name: str = "Tada Today", device_id_suffix: str = "today"):
+    def __init__(self, coordinator: DataUpdateCoordinator, subscription_id: str, device_name: str = "Tada Today", device_id_suffix: str = "today", quiet_window_enabled: bool = False, quiet_window_from: str | None = None, quiet_window_to: str | None = None):
         name = "Tada consumption today"
         unique_id = f"tada_consumption_today_{subscription_id}"
         device_info = {
@@ -174,38 +186,46 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
         # Energy Dashboard compatibility
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL
+        # Quiet window configuration
+        self._quiet_window_enabled = bool(quiet_window_enabled)
+        self._quiet_window_from_t = parse_hhmm(quiet_window_from) if isinstance(quiet_window_from, str) else None
+        self._quiet_window_to_t = parse_hhmm(quiet_window_to) if isinstance(quiet_window_to, str) else None
+        self._quiet_start_unsub = None
+        self._quiet_end_unsub = None
+
+    def _in_quiet_window(self) -> bool:
+        if not self._quiet_window_enabled:
+            return False
+        return is_time_in_range(dt_util.now().time(), self._quiet_window_from_t, self._quiet_window_to_t)
+
+    @property
+    def available(self) -> bool:
+        base = super().available
+        if not base:
+            return False
+        # Hide during quiet window to avoid ingesting inconsistent backend rollover samples
+        return not self._in_quiet_window()
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
         consumption = data.get("consumption_today") or {}
         items = consumption.get("data") or []
         if items and isinstance(items, list):
-            total = 0.0
-            hours = {}
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                hour = item.get("hour")
-                kwh = item.get("kWh")
-                w = item.get("W")
-                label = item.get("label")
-                try:
-                    # coerce kwh to float when possible
-                    kwh_val = float(kwh) if kwh is not None else 0.0
-                except Exception:
-                    kwh_val = 0.0
-                total += kwh_val
-                # store keyed by hour (string keys for HA attributes)
-                hours[str(hour)] = {"kWh": kwh, "W": w, "label": label}
-
+            total = sum(
+                _to_float(item.get("kWh"), 0.0)
+                for item in items
+                if isinstance(item, dict)
+            )
+            hours = {
+                str(item.get("hour")): {"kWh": item.get("kWh"), "W": item.get("W"), "label": item.get("label")}
+                for item in items
+                if isinstance(item, dict)
+            }
             # state: total kWh for today (rounded)
-            try:
-                self._state = round(total, 3)
-            except Exception:
-                self._state = total
+            self._state = _round_safe(total, 3)
 
             # build extra attributes: raw list, structured hours dict, and flat per-hour keys
-            attrs = {"hourly_data": items, "hours": hours}
+            attrs = {"hourly_data": items, "hours": hours, "quiet_window_active": self._in_quiet_window()}
             for h, info in hours.items():
                 attrs[f"hour_{h}_kWh"] = info.get("kWh")
                 attrs[f"hour_{h}_W"] = info.get("W")
@@ -213,11 +233,75 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
             self._attr_extra_state_attributes = attrs
         else:
             self._state = None
-            self._attr_extra_state_attributes = {"hourly_data": [], "hours": {}}
+            self._attr_extra_state_attributes = {"hourly_data": [], "hours": {}, "quiet_window_active": self._in_quiet_window()}
 
     def _handle_coordinator_update(self) -> None:
         self._update_from_coordinator()
         self.async_write_ha_state()
+
+    async def async_added_to_hass(self):
+        try:
+            await super().async_added_to_hass()
+        except Exception:
+            pass
+        # Schedule precise state flips at quiet window boundaries to ensure clean gaps
+        if self._quiet_window_enabled and self._quiet_window_from_t and self._quiet_window_to_t:
+            self._schedule_quiet_window_callbacks()
+
+    async def async_will_remove_from_hass(self):
+        # Cancel scheduled callbacks
+        try:
+            if callable(self._quiet_start_unsub):
+                self._quiet_start_unsub()
+        except Exception:
+            pass
+        try:
+            if callable(self._quiet_end_unsub):
+                self._quiet_end_unsub()
+        except Exception:
+            pass
+
+    def _schedule_quiet_window_callbacks(self):
+        # Use local daily time-change triggers to fire exactly at configured clock times
+        @callback
+        def _on_quiet_start_time(now):
+            # Mark unavailable immediately at quiet start
+            self._state = None
+            self.async_write_ha_state()
+            try:
+                self.coordinator.async_request_refresh()
+            except Exception:
+                pass
+
+        @callback
+        def _on_quiet_end_time(now):
+            # Request refresh to restore normal updates after quiet window
+            try:
+                self.coordinator.async_request_refresh()
+            except Exception:
+                pass
+            self.async_write_ha_state()
+
+        try:
+            self._quiet_start_unsub = async_track_time_change(
+                self.hass,
+                _on_quiet_start_time,
+                hour=self._quiet_window_from_t.hour,
+                minute=self._quiet_window_from_t.minute,
+                second=0,
+            )
+        except Exception:
+            self._quiet_start_unsub = None
+        try:
+            self._quiet_end_unsub = async_track_time_change(
+                self.hass,
+                _on_quiet_end_time,
+                hour=self._quiet_window_to_t.hour,
+                minute=self._quiet_window_to_t.minute,
+                second=0,
+            )
+        except Exception:
+            self._quiet_end_unsub = None
 
 class TadaConsumptionPeriodSensor(TadaBaseSensor):
     """Generic consumption sensor for arbitrary period (shows total and raw list)."""
@@ -237,10 +321,7 @@ class TadaConsumptionPeriodSensor(TadaBaseSensor):
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL
         # Provide translation key for friendly labels
-        try:
-            self._attr_translation_key = f"tada_consumption_{period_key}"
-        except Exception:
-            pass
+        self._attr_translation_key = f"tada_consumption_{period_key}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
@@ -268,51 +349,30 @@ class TadaConsumptionPeriodSensor(TadaBaseSensor):
         total_from_consumption = None
         state_source = None
         if daily_items and isinstance(daily_items, list):
-            total = 0.0
-            for item in daily_items:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    kwh = float(item.get("kWh") or 0)
-                except Exception:
-                    kwh = 0.0
-                total += kwh
-            try:
-                total_from_consumption = round(total, 3)
-            except Exception:
-                total_from_consumption = total
+            total = sum(
+                _to_float(item.get("kWh"), 0.0)
+                for item in daily_items
+                if isinstance(item, dict)
+            )
+            total_from_consumption = _round_safe(total, 3)
             state_source = "consumption_daily"
         elif flat_items and isinstance(flat_items, list):
-            total = 0.0
-            for item in flat_items:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    kwh = float(item.get("kWh") or 0)
-                except Exception:
-                    kwh = 0.0
-                total += kwh
-            try:
-                total_from_consumption = round(total, 3)
-            except Exception:
-                total_from_consumption = total
+            total = sum(
+                _to_float(item.get("kWh"), 0.0)
+                for item in flat_items
+                if isinstance(item, dict)
+            )
+            total_from_consumption = _round_safe(total, 3)
             state_source = "consumption_flat"
 
         total_from_timebands = None
         if isinstance(timebands_items, list) and timebands_items:
-            tb_total = 0.0
-            for item in timebands_items:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    v = float(item.get("value") or 0)
-                except Exception:
-                    v = 0.0
-                tb_total += v
-            try:
-                total_from_timebands = round(tb_total, 3)
-            except Exception:
-                total_from_timebands = tb_total
+            tb_total = sum(
+                _to_float(item.get("value"), 0.0)
+                for item in timebands_items
+                if isinstance(item, dict)
+            )
+            total_from_timebands = _round_safe(tb_total, 3)
 
         # Prefer consumption-derived total, fallback to timebands-derived total
         if total_from_consumption is not None:
@@ -353,29 +413,19 @@ class TadaTimebandsSensor(TadaBaseSensor):
         self._period_key = period_key
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_icon = "mdi:lightning-bolt"
-        try:
-            self._attr_translation_key = f"tada_timebands_total_{period_key}"
-        except Exception:
-            pass
+        self._attr_translation_key = f"tada_timebands_total_{period_key}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
         src = data.get(f"timebands_{self._period_key}") or {}
         items = src.get("data") or []
         if items and isinstance(items, list):
-            total = 0.0
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    v = float(item.get("value") or 0)
-                except Exception:
-                    v = 0.0
-                total += v
-            try:
-                self._state = round(total, 3)
-            except Exception:
-                self._state = total
+            total = sum(
+                _to_float(item.get("value"), 0.0)
+                for item in items
+                if isinstance(item, dict)
+            )
+            self._state = _round_safe(total, 3)
             self._attr_extra_state_attributes = {"timebands": items}
         else:
             self._state = None
@@ -445,15 +495,9 @@ class TadaTimebandSplitSensor(TadaBaseSensor):
             label = self._normalize_label(str(item.get("label")))
             if label == self._band_slug:
                 if self._mode == "value":
-                    try:
-                        value = float(item.get("value") or 0)
-                    except Exception:
-                        value = item.get("value")
+                    value = _to_float(item.get("value"), 0.0)
                 else:
-                    try:
-                        value = float(item.get("percentage") or 0)
-                    except Exception:
-                        value = item.get("percentage")
+                    value = _to_float(item.get("percentage"), 0.0)
                 break
         self._state = value
 
@@ -498,13 +542,10 @@ class TadaSummaryItemSensor(TadaBaseSensor):
         self._attr_native_unit_of_measurement = "kWh" if mode == "value" else "%"
         self._attr_icon = "mdi:lightning-bolt" if mode == "value" else "mdi:percent-outline"
         self._attr_has_entity_name = False
-        try:
-            cat_slug = "attivita" if category == "activity" else "elettrodomestici"
-            mode_slug = "kwh" if mode == "value" else "percentuale"
-            label_slug = slugify(display_label)
-            self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{label_slug}_{mode_slug}"
-        except Exception:
-            pass
+        cat_slug = "attivita" if category == "activity" else "elettrodomestici"
+        mode_slug = "kwh" if mode == "value" else "percentuale"
+        label_slug = slugify(display_label)
+        self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{label_slug}_{mode_slug}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
@@ -522,15 +563,9 @@ class TadaSummaryItemSensor(TadaBaseSensor):
                 continue
             if int(item.get(id_key, -1)) == self._item_id:
                 if self._mode == "value":
-                    try:
-                        val = float(item.get("value") or 0)
-                    except Exception:
-                        val = item.get("value")
+                    val = _to_float(item.get("value"), 0.0)
                 else:
-                    try:
-                        val = float(item.get("percentage") or 0)
-                    except Exception:
-                        val = item.get("percentage")
+                    val = _to_float(item.get("percentage"), 0.0)
                 break
         self._state = val
 
@@ -646,23 +681,16 @@ class TadaComparisonValueSensor(TadaBaseSensor):
         elif unit == "kWh":
             self._attr_icon = "mdi:lightning-bolt"
         if translation_key:
-            try:
-                self._attr_translation_key = translation_key
-            except Exception:
-                pass
+            self._attr_translation_key = translation_key
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
         src = data.get(self._source_key) or {}
         if isinstance(src, dict) and not src.get("error"):
             val = src.get(self._value_key)
-            try:
-                if isinstance(val, (int, float)) and self._scale_percent:
-                    val = round(float(val) * 100.0, 2)
-                elif isinstance(val, (int, float)):
-                    val = round(float(val), 2)
-            except Exception:
-                pass
+            if isinstance(val, (int, float)):
+                val = float(val)
+                val = round(val * 100.0, 2) if self._scale_percent else round(val, 2)
             self._state = val
             # Keep raw payload for diagnostics
             self._attr_extra_state_attributes = {"payload": src}
@@ -696,10 +724,7 @@ class TadaAnnualReferenceSensor(TadaBaseSensor):
         self._source_key = source_key
         # Unit may be kWh depending on API; keep dynamic
         if translation_key:
-            try:
-                self._attr_translation_key = translation_key
-            except Exception:
-                pass
+            self._attr_translation_key = translation_key
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
@@ -707,17 +732,13 @@ class TadaAnnualReferenceSensor(TadaBaseSensor):
         if isinstance(src, dict) and not src.get("error"):
             # Try common numeric keys
             value = None
-            for key in ("annualReference", "value", "total"):
-                v = src.get(key)
-                if isinstance(v, (int, float)):
-                    value = v
-                    break
+            value = next(
+                (src.get(k) for k in ("annualReference", "value", "total") if isinstance(src.get(k), (int, float))),
+                None,
+            )
             # Infer unit if present
             if isinstance(value, (int, float)):
-                try:
-                    self._state = round(float(value), 2)
-                except Exception:
-                    self._state = value
+                self._state = round(float(value), 2)
             else:
                 self._state = None
             self._attr_extra_state_attributes = {"payload": src}
@@ -743,10 +764,7 @@ class PeriodCoverageTimestampSensor(TadaBaseSensor):
         self._period_key = period_key
         self._attr_device_class = "timestamp"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        try:
-            self._attr_translation_key = f"tada_period_coverage_start_{period_key}"
-        except Exception:
-            pass
+        self._attr_translation_key = f"tada_period_coverage_start_{period_key}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
@@ -781,10 +799,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         return False
 
     entities: list[SensorEntity] = []
+    opts = entry.options or {}
 
     # Today device: TODAY group sensors
     # TODAY group
-    entities.append(TadaConsumptionTodayHourlySensor(coordinator, subscription_id, device_name=DEVICE_NAME_TODAY, device_id_suffix=DEVICE_SUFFIX_TODAY))
+    # Pass quiet window options to the today sensor to avoid ingesting inconsistent backend samples around midnight
+    q_enabled = opts.get("quiet_window_enabled", DEFAULT_QUIET_WINDOW_ENABLED)
+    q_from = opts.get("quiet_window_from", DEFAULT_QUIET_WINDOW_FROM)
+    q_to = opts.get("quiet_window_to", DEFAULT_QUIET_WINDOW_TO)
+    entities.append(TadaConsumptionTodayHourlySensor(
+        coordinator,
+        subscription_id,
+        device_name=DEVICE_NAME_TODAY,
+        device_id_suffix=DEVICE_SUFFIX_TODAY,
+        quiet_window_enabled=q_enabled,
+        quiet_window_from=q_from,
+        quiet_window_to=q_to,
+    ))
     entities.append(TadaInstantPowerSensor(hass, subscription_id, device_name=DEVICE_NAME_TODAY, device_id_suffix=DEVICE_SUFFIX_TODAY))
     # Base Tada device: GENERAL sensors
     entities.append(TadaValueSensor(coordinator, "Available Power", "power_latest", "availablePower", "kW", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
@@ -793,7 +824,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     entities.append(TadaValueSensor(coordinator, "Max Available Power", "power_latest", "maxAvailablePower", "kW", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
 
     # Add dynamic coverage-start sensors based on options
-    opts = entry.options or {}
     monitor_custom = opts.get("monitor_custom", False)
     custom_from = opts.get("custom_from")
     custom_to = opts.get("custom_to")

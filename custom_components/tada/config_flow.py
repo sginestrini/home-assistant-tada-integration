@@ -2,7 +2,14 @@ import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, DEFAULT_CLIENT_ID
+from .const import (
+    DOMAIN,
+    DEFAULT_CLIENT_ID,
+    DEFAULT_QUIET_WINDOW_ENABLED,
+    DEFAULT_QUIET_WINDOW_FROM,
+    DEFAULT_QUIET_WINDOW_TO,
+    DEFAULT_QUIET_WINDOW_PAUSE_REST,
+)
 from .api import TadaAPI, AuthError
 
 
@@ -96,6 +103,11 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                 "custom_to": current.get("custom_to", ""),
                 "enabled_appliances": current.get("enabled_appliances", ""),
                 "enabled_activities": current.get("enabled_activities", ""),
+                # Quiet window defaults
+                "quiet_window_enabled": current.get("quiet_window_enabled", DEFAULT_QUIET_WINDOW_ENABLED),
+                "quiet_window_from": current.get("quiet_window_from", DEFAULT_QUIET_WINDOW_FROM),
+                "quiet_window_to": current.get("quiet_window_to", DEFAULT_QUIET_WINDOW_TO),
+                "quiet_window_pause_rest": current.get("quiet_window_pause_rest", DEFAULT_QUIET_WINDOW_PAUSE_REST),
             }
 
             schema = vol.Schema({
@@ -110,6 +122,11 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                 vol.Optional("custom_to", default=defaults["custom_to"]): str,
                 vol.Optional("enabled_appliances", default=defaults["enabled_appliances"]): str,
                 vol.Optional("enabled_activities", default=defaults["enabled_activities"]): str,
+                # Quiet window controls (simple text HH:MM for broad compatibility)
+                vol.Optional("quiet_window_enabled", default=defaults["quiet_window_enabled"]): bool,
+                vol.Optional("quiet_window_from", default=defaults["quiet_window_from"]): str,
+                vol.Optional("quiet_window_to", default=defaults["quiet_window_to"]): str,
+                vol.Optional("quiet_window_pause_rest", default=defaults["quiet_window_pause_rest"]): bool,
             })
 
             if user_input is None:
@@ -149,6 +166,17 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                 except Exception:
                     return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_custom_dates"})
 
+            # Validate quiet window times if enabled
+            quiet_enabled = bool(user_input.get("quiet_window_enabled", defaults["quiet_window_enabled"]))
+            quiet_from = user_input.get("quiet_window_from", defaults["quiet_window_from"]) or ""
+            quiet_to = user_input.get("quiet_window_to", defaults["quiet_window_to"]) or ""
+            if quiet_enabled:
+                try:
+                    datetime.strptime(quiet_from, "%H:%M")
+                    datetime.strptime(quiet_to, "%H:%M")
+                except Exception:
+                    return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_quiet_window"})
+
             # Save monitoring selections and global ID selections
             return self.async_create_entry(title="", data={
                 "monitor_last_week": bool(user_input.get("monitor_last_week", defaults["monitor_last_week"])),
@@ -162,4 +190,9 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                 "custom_to": custom_to,
                 "enabled_appliances": ap_ids or "",
                 "enabled_activities": act_ids or "",
+                # Quiet window persistence
+                "quiet_window_enabled": quiet_enabled,
+                "quiet_window_from": quiet_from,
+                "quiet_window_to": quiet_to,
+                "quiet_window_pause_rest": bool(user_input.get("quiet_window_pause_rest", defaults["quiet_window_pause_rest"])),
             })

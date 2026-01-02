@@ -51,7 +51,7 @@
     "step": {
       "init": {
         "title": "Opzioni controllo periodo",
-        "description": "Seleziona i periodi aggiuntivi da monitorare. Per il periodo personalizzato indica sia la data di inizio che di fine. Facoltativamente specifica gli ID di Elettrodomestici/Attività (separati da virgola) per limitare i sensori di riepilogo.",
+        "description": "Seleziona i periodi aggiuntivi da monitorare. Per il periodo personalizzato indica sia la data di inizio che di fine. Facoltativamente specifica gli ID di Elettrodomestici/Attività (separati da virgola) per limitare i sensori di riepilogo. Configura un intervallo di esclusione dopo mezzanotte per evitare campioni errati.",
         "data": {
           "monitor_last_week": "Monitora ultima settimana",
           "monitor_last_7_days": "Monitora ultimi 7 giorni",
@@ -63,7 +63,11 @@
           "custom_from": "Data inizio (YYYY-MM-DD)",
           "custom_to": "Data fine (YYYY-MM-DD)",
           "enabled_appliances": "Elettrodomestici monitorati (ID, separati da virgola)",
-          "enabled_activities": "Attività monitorate (ID, separati da virgola)"
+          "enabled_activities": "Attività monitorate (ID, separati da virgola)",
+          "quiet_window_enabled": "Intervallo di esclusione dopo mezzanotte (nascondi sensore 'Oggi')",
+          "quiet_window_from": "Inizio intervallo di esclusione (HH:MM)",
+          "quiet_window_to": "Fine intervallo di esclusione (HH:MM)",
+          "quiet_window_pause_rest": "Sospendi richieste REST durante l'intervallo (mantieni Consumo Istantaneo)"
         }
       }
       ,
@@ -87,7 +91,8 @@
     "error": {
       "invalid_date": "Data personalizzata non valida o mancante. Formato richiesto: YYYY-MM-DD",
       "invalid_appliance_ids": "Lista ID elettrodomestici non valida (usa numeri separati da virgola)",
-      "invalid_activity_ids": "Lista ID attività non valida (usa numeri separati da virgola)"
+      "invalid_activity_ids": "Lista ID attività non valida (usa numeri separati da virgola)",
+      "invalid_quiet_window": "Orario intervallo di esclusione non valido. Formato HH:MM."
     }
   },
   "entity": {

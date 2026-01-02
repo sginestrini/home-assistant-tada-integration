@@ -1,12 +1,27 @@
 from __future__ import annotations
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .mapping import SUMMARY_PERIODS
 
 _LOGGER = logging.getLogger(__name__)
+
+# Numeric helpers
+def _to_float(v, default: float = 0.0) -> float:
+    """Best-effort conversion to float; return default on failure."""
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+def _round_safe(v, ndigits: int = 3):
+    """Round numeric value; return original on failure."""
+    try:
+        return round(v, ndigits)
+    except Exception:
+        return v
 
 def _parse_ids(s: str | None) -> set[int]:
     """Parse comma-separated IDs into a set[int]."""
@@ -87,3 +102,28 @@ def tk_summary_switch(period_key: str) -> str:
     except Exception:
         # Fallback to generic custom key
         return "tada_summary_switch_custom"
+
+
+def parse_hhmm(value: str | None) -> time | None:
+    """Parse HH:MM string to time, return None if invalid."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%H:%M").time()
+    except Exception:
+        return None
+
+
+def is_time_in_range(now_t: time, start_t: time | None, end_t: time | None) -> bool:
+    """Return True if ``now_t`` falls within [start_t, end_t) accounting for midnight wrap.
+
+    - If either ``start_t`` or ``end_t`` is None, returns False.
+    - Non-wrapping ranges: start <= now < end
+    - Wrapping ranges (e.g., 22:00..06:00): now >= start or now < end
+    """
+    if start_t is None or end_t is None:
+        return False
+    if start_t <= end_t:
+        return start_t <= now_t < end_t
+    # wrap-around range
+    return (now_t >= start_t) or (now_t < end_t)

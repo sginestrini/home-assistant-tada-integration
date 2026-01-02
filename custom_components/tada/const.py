@@ -24,3 +24,10 @@ DEVICE_NAME_YESTERDAY = "Tada Yesterday"
 DEVICE_SUFFIX_BASE = "base"
 DEVICE_SUFFIX_TODAY = "today"
 DEVICE_SUFFIX_YESTERDAY = "yesterday"
+
+# Optional quiet window (after midnight) to avoid API glitches
+# Disabled by default; when enabled, sensors can be silenced and REST calls paused
+DEFAULT_QUIET_WINDOW_ENABLED = False
+DEFAULT_QUIET_WINDOW_FROM = "23:59"
+DEFAULT_QUIET_WINDOW_TO = "00:20"
+DEFAULT_QUIET_WINDOW_PAUSE_REST = True

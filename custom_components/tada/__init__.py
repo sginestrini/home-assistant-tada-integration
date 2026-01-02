@@ -7,15 +7,21 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
     UPDATE_INTERVAL_MINUTES,
     UPDATE_INTERVAL_TODAY_MINUTES,
     UPDATE_INTERVAL_YESTERDAY_MINUTES,
     UPDATE_INTERVAL_DAILY,
+    DEFAULT_QUIET_WINDOW_ENABLED,
+    DEFAULT_QUIET_WINDOW_FROM,
+    DEFAULT_QUIET_WINDOW_TO,
+    DEFAULT_QUIET_WINDOW_PAUSE_REST,
 )
 from .api import TadaAPI, AuthError
 from .ws import TadaWSClient
+from .utils import parse_hhmm, is_time_in_range
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +49,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # Start from previous data so skipped groups keep their values
         data: dict = previous_data.copy() if isinstance(previous_data, dict) else {}
 
+        # Quiet window handling (optional): skip REST polling during specified time range
+        opts = entry.options or {}
+        q_enabled = opts.get("quiet_window_enabled", DEFAULT_QUIET_WINDOW_ENABLED)
+        q_from = opts.get("quiet_window_from", DEFAULT_QUIET_WINDOW_FROM)
+        q_to = opts.get("quiet_window_to", DEFAULT_QUIET_WINDOW_TO)
+        pause_rest = opts.get("quiet_window_pause_rest", DEFAULT_QUIET_WINDOW_PAUSE_REST)
+
+        def _in_quiet_window() -> bool:
+            if not q_enabled:
+                return False
+            start_s = q_from
+            end_s = q_to
+            t_now = dt_util.now().time()
+            t_start = parse_hhmm(start_s) if isinstance(start_s, str) else None
+            t_end = parse_hhmm(end_s) if isinstance(end_s, str) else None
+            if not t_start or not t_end:
+                return False
+            return is_time_in_range(t_now, t_start, t_end)
+
         def _due(group: str, minutes: int) -> bool:
             """Return True if the group's minimum interval has elapsed or it's first run."""
             now = time.time()
@@ -62,6 +87,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 data[key] = default
 
         try:
+            # If configured, pause REST calls during the quiet window
+            if pause_rest and _in_quiet_window():
+                _LOGGER.debug("Tada: quiet window active, skipping REST polling (websocket remains active)")
+                # Neutralize today's consumption to avoid lingering pre-window samples.
+                # Keep other previously fetched groups untouched.
+                try:
+                    data["consumption_today"] = {"data": []}
+                except Exception:
+                    pass
+                # Persist snapshot and exit update without REST polling.
+                previous_data = data
+                first_run = False
+                return data
             # TODAY / GENERAL: update frequently
             if _due("today", UPDATE_INTERVAL_TODAY_MINUTES):
                 await _fetch("power_latest", api.get_power_latest(), None)

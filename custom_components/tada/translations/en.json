@@ -52,7 +52,7 @@
     "step": {
       "init": {
         "title": "Period Check Options",
-        "description": "Select additional periods to monitor. For custom period, provide both start and end dates. Optionally specify Appliances/Activities IDs (comma-separated) to limit summary sensors.",
+        "description": "Select additional periods to monitor. For custom period, provide both start and end dates. Optionally specify Appliances/Activities IDs (comma-separated) to limit summary sensors. Configure a post-midnight quiet window to avoid bad samples.",
         "data": {
           "monitor_last_week": "Monitor last week",
           "monitor_last_7_days": "Monitor last 7 days",
@@ -64,7 +64,11 @@
           "custom_from": "Custom period start (YYYY-MM-DD)",
           "custom_to": "Custom period end (YYYY-MM-DD)",
           "enabled_appliances": "Appliances monitored (IDs, comma-separated)",
-          "enabled_activities": "Activities monitored(IDs, comma-separated)"
+          "enabled_activities": "Activities monitored(IDs, comma-separated)",
+          "quiet_window_enabled": "Quiet window after midnight (hide 'Today' sensor)",
+          "quiet_window_from": "Quiet window start (HH:MM)",
+          "quiet_window_to": "Quiet window end (HH:MM)",
+          "quiet_window_pause_rest": "Pause REST polling during quiet window (keep Instant Power)"
         }
       }
       ,
@@ -88,7 +92,8 @@
     "error": {
       "invalid_date": "Invalid or missing custom date(s). Expected format: YYYY-MM-DD",
       "invalid_appliance_ids": "Invalid appliance ID list (use numbers, comma-separated)",
-      "invalid_activity_ids": "Invalid activity ID list (use numbers, comma-separated)"
+      "invalid_activity_ids": "Invalid activity ID list (use numbers, comma-separated)",
+      "invalid_quiet_window": "Invalid quiet window time(s). Expected HH:MM."
     }
   }
   ,
