@@ -1,0 +1,93 @@
+# === Template: DELTA kWh sensor from today's increments ===
+# Emits only the increment between two readings; ignores resets/invalid values.
+template:
+  - trigger:
+      - platform: state
+        entity_id: sensor.tada_consumption_today
+    sensor:
+      - name: "Tada Energy Delta"
+        unique_id: tada_energy_delta
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: measurement
+        state: >
+          {% set to = trigger.to_state.state %}
+          {% set fr = trigger.from_state.state %}
+          {% if to in ['unknown','unavailable','none'] or fr in ['unknown','unavailable','none'] %}
+            0
+          {% else %}
+            {% set new = to|float(0) %}
+            {% set old = fr|float(0) %}
+            {% if new >= old %}
+              {{ (new - old) | round(3) }}   {# normale incremento #}
+            {% else %}
+              0                               {# reset a mezzanotte o calo: niente consumo #}
+            {% endif %}
+          {% endif %}
+
+# === Utility meter with F1/F23 tariffs that sums the DELTAs ===
+utility_meter:
+  home_energy_bioraria:
+    unique_id: home_energy_bioraria
+    name: "Home Energy Bioraria"
+    source: sensor.tada_energy_delta
+    tariffs:
+      - F1
+      - F23
+    cycle: daily           # can also use monthly
+    delta_values: true     # <-- sum delta "as-is"
+    # net_consumption: false  # default
+
+# === Automation for F1/F23 tariffs with "working_day" sensor ===
+automation:
+  - alias: "Tariff: switch F1/F23 (IT bioraria, giorno_lavorativo)"
+    id: tariff_switch_f1_f23_it
+    mode: single
+    trigger:
+      - platform: homeassistant
+        event: start
+      - platform: time
+        at: "00:00:00"
+      - platform: time
+        at: "08:00:00"
+      - platform: time
+        at: "19:00:00"
+      - platform: state
+        entity_id: binary_sensor.giorno_lavorativo
+    action:
+      - choose:
+          - conditions:
+              - condition: time
+                after: "08:00:00"
+                before: "19:00:00"
+              - condition: state
+                entity_id: binary_sensor.giorno_lavorativo
+                state: "on"
+            sequence:
+              - service: select.select_option
+                target:
+                  entity_id: select.home_energy_bioraria
+                data:
+                  option: "F1"
+        default:
+          - service: select.select_option
+            target:
+              entity_id: select.home_energy_bioraria
+            data:
+              option: "F23"
+
+  # (Optional) realignment when the Working Day calendar changes
+  - alias: "Tariff: alignment on Giorno Lavorativo calendar events"
+    id: tariff_switch_calendar_alignment
+    mode: single
+    trigger:
+      - platform: calendar
+        entity_id: calendar.giorno_lavorativo_calendar
+        event: start
+      - platform: calendar
+        entity_id: calendar.giorno_lavorativo_calendar
+        event: end
+    action:
+      - service: automation.trigger
+        target:
+          entity_id: automation.tariff_switch_f1_f23_it

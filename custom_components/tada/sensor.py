@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.util import dt as dt_util
 
@@ -269,7 +270,7 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
             self._state = None
             self.async_write_ha_state()
             try:
-                self.coordinator.async_request_refresh()
+                self.hass.async_create_task(self.coordinator.async_request_refresh())
             except Exception:
                 pass
 
@@ -277,7 +278,7 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
         def _on_quiet_end_time(now):
             # Request refresh to restore normal updates after quiet window
             try:
-                self.coordinator.async_request_refresh()
+                self.hass.async_create_task(self.coordinator.async_request_refresh())
             except Exception:
                 pass
             self.async_write_ha_state()
@@ -302,6 +303,158 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
             )
         except Exception:
             self._quiet_end_unsub = None
+
+class TadaLifetimeEnergySensor(TadaBaseSensor):
+    """Cumulative lifetime energy sensor built inside the integration.
+
+    It maintains a persisted base (sum of completed days) and adds the current
+    day running total from the coordinator to expose a total_increasing energy
+    counter suitable for the Energy dashboard.
+    """
+
+    def __init__(
+        self,
+        coordinator: DataUpdateCoordinator,
+        subscription_id: str,
+        device_name: str = DEVICE_NAME_BASE,
+        device_id_suffix: str = DEVICE_SUFFIX_BASE,
+    ):
+        name = "Tada total energy"
+        unique_id = f"tada_total_energy_{subscription_id}"
+        device_info = {
+            "identifiers": {(DOMAIN, f"{subscription_id}:{device_id_suffix}")},
+            "name": device_name,
+        }
+        super().__init__(coordinator, name, unique_id, subscription_id, device_info)
+        self._attr_native_unit_of_measurement = "kWh"
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_translation_key = "tada_total_energy"
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_suggested_object_id = "tada_total_energy"
+
+        # Persisted pieces
+        self._store: Store | None = None
+        self._base_kwh: float = 0.0
+        self._last_rollover_date: str | None = None  # YYYY-MM-DD (day that was added to base)
+        self._last_today_seen_kwh: float = 0.0       # last non-decreasing snapshot of today
+        self._last_seen_day: str | None = None       # YYYY-MM-DD (current calendar day when last updated)
+        self._persisted_today_seen_kwh: float = 0.0
+
+    async def async_added_to_hass(self):
+        try:
+            await super().async_added_to_hass()
+        except Exception:
+            pass
+        # Initialize storage on first attach
+        try:
+            self._store = Store(self.hass, 1, f"{DOMAIN}_lifetime_{self._subscription_id}.json")
+            data = await self._store.async_load() or {}
+            self._base_kwh = float(data.get("base_kwh", 0.0) or 0.0)
+            self._last_rollover_date = data.get("last_rollover_date")
+            self._last_today_seen_kwh = float(data.get("last_today_seen_kwh", 0.0) or 0.0)
+            self._last_seen_day = data.get("last_seen_day")
+            self._persisted_today_seen_kwh = self._last_today_seen_kwh
+        except Exception:
+            # Fallback to defaults if storage not available
+            self._store = None
+        # Compute an initial state from current coordinator data
+        self._update_from_coordinator()
+        self.async_write_ha_state()
+
+    async def _persist(self):
+        if not self._store:
+            return
+        try:
+            await self._store.async_save(
+                {
+                    "base_kwh": round(self._base_kwh, 3),
+                    "last_rollover_date": self._last_rollover_date,
+                    "last_today_seen_kwh": round(self._last_today_seen_kwh, 3),
+                    "last_seen_day": self._last_seen_day,
+                }
+            )
+        except Exception:
+            pass
+
+    def _calc_today_total(self) -> float:
+        data = self.coordinator.data or {}
+        consumption = data.get("consumption_today") or {}
+        items = consumption.get("data") or []
+        if items and isinstance(items, list):
+            total = sum(
+                _to_float(item.get("kWh"), 0.0)
+                for item in items
+                if isinstance(item, dict)
+            )
+            return _round_safe(total, 3)
+        return 0.0
+
+    def _maybe_rollover(self, now_day: str):
+        """If we crossed to a new day and haven't rolled, add yesterday's total.
+
+        We rely on the cached last_seen snapshot from the previous day to be robust
+        across the quiet window where the coordinator may zero today data.
+        """
+        # If this is the first time we see the day, just set it and return
+        if self._last_seen_day is None:
+            self._last_seen_day = now_day
+            return False
+
+        # No day change
+        if now_day == self._last_seen_day:
+            return False
+
+        # Day changed: if we haven't already rolled over the previous day, do it now
+        prev_day = self._last_seen_day
+        if self._last_rollover_date != prev_day:
+            self._base_kwh = _round_safe(self._base_kwh + (self._last_today_seen_kwh or 0.0), 3)
+            self._last_rollover_date = prev_day
+            self._last_today_seen_kwh = 0.0
+            self._last_seen_day = now_day
+            return True
+
+        # Already rolled for prev_day; just update the marker
+        self._last_seen_day = now_day
+        return False
+
+    def _update_from_coordinator(self):
+        # 1) Check for calendar day transition and perform rollover if needed
+        now_day = dt_util.now().date().isoformat()
+        rolled = self._maybe_rollover(now_day)
+
+        # 2) Compute today's running total from coordinator
+        today_total = self._calc_today_total()
+        # Update the last seen snapshot to a non-decreasing value
+        if today_total > (self._last_today_seen_kwh or 0.0):
+            self._last_today_seen_kwh = today_total
+            # Persist occasionally to survive restarts during quiet window
+            try:
+                if (self._last_today_seen_kwh - (self._persisted_today_seen_kwh or 0.0)) >= 0.01:
+                    self._persisted_today_seen_kwh = self._last_today_seen_kwh
+                    self.hass.async_create_task(self._persist())
+            except Exception:
+                pass
+
+        # 3) Expose lifetime total: base + current today
+        self._state = _round_safe((self._base_kwh or 0.0) + (today_total or 0.0), 3)
+        self._attr_extra_state_attributes = {
+            "base_kwh": _round_safe(self._base_kwh, 3),
+            "today_total_kwh": today_total,
+            "last_rollover_date": self._last_rollover_date,
+        }
+
+        # 4) Persist when rollover occurred (to minimize writes)
+        if rolled:
+            # Schedule persistence asynchronously
+            try:
+                self.hass.async_create_task(self._persist())
+            except Exception:
+                pass
+
+    def _handle_coordinator_update(self) -> None:
+        self._update_from_coordinator()
+        self.async_write_ha_state()
 
 class TadaConsumptionPeriodSensor(TadaBaseSensor):
     """Generic consumption sensor for arbitrary period (shows total and raw list)."""
@@ -822,6 +975,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     entities.append(TadaValueSensor(coordinator, "Current Power", "power_latest", "value", "kW", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
     entities.append(TadaValueSensor(coordinator, "Power Usage %", "power_latest", "powerUsagePercent", "%", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
     entities.append(TadaValueSensor(coordinator, "Max Available Power", "power_latest", "maxAvailablePower", "kW", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
+    # Lifetime total energy (total_increasing) for Energy dashboard
+    entities.append(TadaLifetimeEnergySensor(coordinator, subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
 
     # Add dynamic coverage-start sensors based on options
     monitor_custom = opts.get("monitor_custom", False)

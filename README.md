@@ -22,6 +22,7 @@ Status: A PR is open to add this integration to the HACS Store. Until approval, 
 - Configuration & Options: [docs/configuration.md](docs/configuration.md)
 - Subscription ID guide: [docs/subscription-id.md](docs/subscription-id.md)
 - Mapping (Appliances & Activities): [docs/mapping.md](docs/mapping.md)
+- Blueprints & Packages: [docs/blueprints.md](docs/blueprints.md)
 - Troubleshooting & Entity ID regeneration: [docs/troubleshooting.md](docs/troubleshooting.md)
 - Contributing: [docs/contributing.md](docs/contributing.md)
 
