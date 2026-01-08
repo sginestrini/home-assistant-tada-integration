@@ -4,7 +4,7 @@ import aiohttp
 import async_timeout
 from typing import Optional
 from datetime import datetime
-from .const import COGNITO_URL, TIMEOUT, WS_URL
+from .const import COGNITO_URL, TIMEOUT
 
 def _validate_date(d: str):
     """Validate ISO date string YYYY-MM-DD and raise ValueError if invalid."""

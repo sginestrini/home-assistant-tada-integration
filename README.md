@@ -1,10 +1,16 @@
+
 # Tada (Unofficial) – Home Assistant Integration
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://hacs.xyz/)
-[![hacs_store_status](https://img.shields.io/badge/HACS-Store%20Pending-FFC107.svg?style=for-the-badge)](https://hacs.xyz/)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-blue.svg?style=for-the-badge&logo=home-assistant)](https://hacs.xyz/)
+[![Version](https://img.shields.io/github/v/release/sginestrini/home-assistant-tada-integration?style=for-the-badge)](https://github.com/sginestrini/home-assistant-tada-integration/releases)
 
-Unofficial Home Assistant integration for the Tada service. Not affiliated with tadapower.it. Provides polling-based sensors and optional binary sensors sourced from Tada cloud APIs.
+Unofficial Home Assistant integration for the Tada service. Not affiliated with tadapower.it.
+Provides polling-based sensors and optional binary sensors sourced from Tada cloud APIs.
 
-Status: A PR is open to add this integration to the HACS Store. Until approval, please install via the HACS Custom Repository or manual steps.
+Download and install directly through [HACS (Home Assistant Community Store)](https://hacs.xyz/):
+
+[![Open your Home Assistant instance and open the Tada (Unofficial) – Home Assistant Integration inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=itginestrins&repository=home-assistant-tada-integration&category=integration)
+
+Status: This integration is now approved and available in the HACS Store! You can install it directly using the button above.
 
 ## Quick Start
 - Install: see [docs/installation.md](docs/installation.md)

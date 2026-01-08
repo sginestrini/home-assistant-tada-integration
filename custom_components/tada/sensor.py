@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Iterable, Tuple
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
@@ -769,12 +769,13 @@ class TadaInstantPowerSensor(SensorEntity):
     def __init__(self, hass: HomeAssistant, subscription_id: str, device_name: str = "Tada Today", device_id_suffix: str = "today"):
         self.hass = hass
         self._subscription_id = subscription_id
-        # use a stable name/unique_id (avoid dynamic "_ws_..." suffix)
         self._attr_name = "Tada instant power"
         self._attr_unique_id = "tada_instant_power"
         # attach to the same device as other sensors
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, f"{subscription_id}:{device_id_suffix}")}, name=device_name)
         self._attr_native_unit_of_measurement = "W"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:flash"
         self._attr_translation_key = "tada_instant_power"
         self._state: Any = None

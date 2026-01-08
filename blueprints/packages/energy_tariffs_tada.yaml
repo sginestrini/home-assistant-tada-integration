@@ -8,7 +8,6 @@ template:
       - name: "Tada Energy Delta"
         unique_id: tada_energy_delta
         unit_of_measurement: "kWh"
-        device_class: energy
         state_class: measurement
         state: >
           {% set to = trigger.to_state.state %}
