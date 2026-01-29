@@ -374,12 +374,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     entry.async_on_unload(remove_listener)
 
     # forward platforms (sensors/binary sensors/switches) after WS client is started
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "switch"])
+    from .const import PLATFORMS
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "binary_sensor", "switch"])
+    from .const import PLATFORMS
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         ws_client = hass.data[DOMAIN].get("ws_client")
         if ws_client:

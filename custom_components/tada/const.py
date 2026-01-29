@@ -31,3 +31,6 @@ DEFAULT_QUIET_WINDOW_ENABLED = False
 DEFAULT_QUIET_WINDOW_FROM = "23:59"
 DEFAULT_QUIET_WINDOW_TO = "00:20"
 DEFAULT_QUIET_WINDOW_PAUSE_REST = True
+
+# Home Assistant platforms provided by this integration
+PLATFORMS = ["sensor", "binary_sensor", "switch"]

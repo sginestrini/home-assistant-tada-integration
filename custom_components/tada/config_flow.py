@@ -164,7 +164,7 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                     if dt_from > dt_to:
                         raise ValueError("order")
                 except Exception:
-                    return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_custom_dates"})
+                    return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_date"})
 
             # Validate quiet window times if enabled
             quiet_enabled = bool(user_input.get("quiet_window_enabled", defaults["quiet_window_enabled"]))
