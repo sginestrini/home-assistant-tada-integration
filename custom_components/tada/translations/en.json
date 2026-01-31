@@ -11,7 +11,7 @@
           "locale": "Locale"
         }
             ,
-            "description": "Subscription ID: open https://webapp.tada.magie-tada.com, go to dev tools network page and copy the subscription_id from any API call."
+            "description": "Subscription ID: open {help_url}, go to dev tools network page and copy the subscription_id from any API call."
       },
       "reauth_confirm": {
         "title": "Reauthenticate Tada",

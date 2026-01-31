@@ -1,12 +1,12 @@
 {
   "domain": "tada",
   "name": "Tada",
+  "after_dependencies": ["energy"],
   "codeowners": ["@sginestrini"],
   "config_flow": true,
   "documentation": "https://github.com/sginestrini/home-assistant-tada-integration#readme",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "after_dependencies": ["energy"],
   "issue_tracker": "https://github.com/sginestrini/home-assistant-tada-integration/issues",
   "loggers": ["custom_components.tada"],
   "requirements": [],

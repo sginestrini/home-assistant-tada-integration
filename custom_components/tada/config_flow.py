@@ -24,7 +24,10 @@ class TadaConfigFlow(config_entries.ConfigFlow):
                     vol.Required("password"): str,
                     vol.Required("subscription_id"): str,
                     vol.Optional("locale", default="it"): str,
-                })
+                }),
+                description_placeholders={
+                    "help_url": "https://webapp.tada.magie-tada.com"
+                }
             )
 
         data = dict(user_input)

@@ -11,7 +11,7 @@
           "locale": "Lingua"
         }
         ,
-        "description": "Subscription ID: accedi a https://webapp.tada.magie-tada.com, apri dev tools network  e copia il subscription_id di una chiamata API."
+        "description": "Subscription ID: accedi a {help_url}, apri dev tools network e copia il subscription_id di una chiamata API."
       },
       "reauth_confirm": {
         "title": "Riautenticazione Tada",
