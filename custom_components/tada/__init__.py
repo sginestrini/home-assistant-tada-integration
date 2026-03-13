@@ -128,6 +128,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             # OTHER PERIODS: update daily
             opts = entry.options or {}
             if _due("other", UPDATE_INTERVAL_DAILY):
+                await _fetch("power_events", api.get_power_events(), {})
+                
                 monitor_flags = {
                     "last_week": opts.get("monitor_last_week", False),
                     "last_7_days": opts.get("monitor_last_7_days", False),

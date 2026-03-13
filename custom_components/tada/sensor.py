@@ -937,6 +937,66 @@ class PeriodCoverageTimestampSensor(TadaBaseSensor):
         self.async_write_ha_state()
 
 
+class TadaPowerEventSensor(TadaBaseSensor):
+    """Sensor tracking power event counts (alarms or cutoffs) for a specific period."""
+
+    def __init__(
+        self,
+        coordinator: DataUpdateCoordinator,
+        subscription_id: str,
+        period_key: str,  # "last30Days" or "last90Days"
+        event_type: str,  # "alarms" or "cutoffs"
+        device_name: str = "Tada",
+        device_id_suffix: str = "default",
+    ):
+        # Format names like: Tada Power Events Alarms 30 Days
+        period_label = "30 Days" if period_key == "last30Days" else "90 Days"
+        name = f"Tada Power Events {event_type.capitalize()} {period_label}"
+        unique_id = f"tada_power_events_{event_type}_{period_key}_{subscription_id}"
+        
+        device_info = {
+            "identifiers": {(DOMAIN, f"{subscription_id}:{device_id_suffix}")},
+            "name": device_name,
+        }
+        super().__init__(coordinator, name, unique_id, subscription_id, device_info)
+        
+        self._period_key = period_key
+        self._event_type = event_type
+        
+        self._attr_icon = "mdi:alert" if event_type == "alarms" else "mdi:power-plug-off"
+        # Since these are counts, measurement unit is omitted, and state class can be measurement.
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_translation_key = f"tada_power_events_{event_type}_{period_key.lower()}"
+
+    def _update_from_coordinator(self):
+        data = self.coordinator.data or {}
+        # We fetch the entire power events payload
+        events_data = data.get("power_events") or {}
+        
+        # Access the specific period (e.g. last30Days)
+        period_data = events_data.get(self._period_key) or {}
+        
+        if period_data and not events_data.get("error"):
+            # Depending on event type we fetch 'alarmsCount' or 'cutoffsCount'
+            count_key = f"{self._event_type}Count"
+            count = period_data.get(count_key)
+            self._state = int(count) if count is not None else 0
+            
+            # Store details in attributes: list of events and period dates
+            self._attr_extra_state_attributes = {
+                "events": period_data.get(self._event_type, []),
+                "period": period_data.get("period", {}),
+                "has_more": period_data.get(f"hasMore{self._event_type.capitalize()}", False)
+            }
+        else:
+            self._state = None
+            self._attr_extra_state_attributes = {"events": [], "period": {}}
+
+    def _handle_coordinator_update(self) -> None:
+        self._update_from_coordinator()
+        self.async_write_ha_state()
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up Tada sensors from a config entry."""
     data = hass.data.get(DOMAIN)
@@ -978,6 +1038,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     entities.append(TadaValueSensor(coordinator, "Max Available Power", "power_latest", "maxAvailablePower", "kW", subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
     # Lifetime total energy (total_increasing) for Energy dashboard
     entities.append(TadaLifetimeEnergySensor(coordinator, subscription_id, device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
+
+    # Power Events sensors
+    entities.append(TadaPowerEventSensor(coordinator, subscription_id, "last30Days", "alarms", device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
+    entities.append(TadaPowerEventSensor(coordinator, subscription_id, "last30Days", "cutoffs", device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
+    entities.append(TadaPowerEventSensor(coordinator, subscription_id, "last90Days", "alarms", device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
+    entities.append(TadaPowerEventSensor(coordinator, subscription_id, "last90Days", "cutoffs", device_name=DEVICE_NAME_BASE, device_id_suffix=DEVICE_SUFFIX_BASE))
 
     # Add dynamic coverage-start sensors based on options
     monitor_custom = opts.get("monitor_custom", False)

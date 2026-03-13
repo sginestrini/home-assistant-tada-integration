@@ -285,6 +285,14 @@ class TadaAPI:
         url = "https://webapp.tada.magie-tada.com/api/energy/home/total?" + "&".join(params)
         return await self._get(url)
 
+    async def get_power_events(self):
+        """Get power events (alarms and cutoffs) for the subscription.
+        
+        Example response: {"last30Days": {"alarmsCount": 0, ...}, "last90Days": {"cutoffsCount": 0, ...}}
+        """
+        url = f"https://webapp.tada.magie-tada.com/api/power/events?subscriptionId={self._subscription_id}"
+        return await self._get(url)
+
     @property
     def ws_token(self):
         return self._id_token
