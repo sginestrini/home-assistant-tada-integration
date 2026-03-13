@@ -5,19 +5,21 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.tada.const import DOMAIN
 
+from unittest.mock import patch, MagicMock, AsyncMock
+
 @pytest.fixture
 def mock_api_data():
     """Mock the responses from TadaAPI for the coordinator."""
     with patch(
-        "custom_components.tada.api.TadaAPI.get_power_latest", return_value={"value": 1.5, "availablePower": 3.0}
+        "custom_components.tada.api.TadaAPI.get_power_latest", new_callable=AsyncMock, return_value={"value": 1.5, "availablePower": 3.0}
     ), patch(
-        "custom_components.tada.api.TadaAPI.get_subscription_status", return_value={}
+        "custom_components.tada.api.TadaAPI.get_subscription_status", new_callable=AsyncMock, return_value={}
     ), patch(
-        "custom_components.tada.api.TadaAPI.get_power_meter_status", return_value={}
+        "custom_components.tada.api.TadaAPI.get_power_meter_status", new_callable=AsyncMock, return_value={}
     ), patch(
-        "custom_components.tada.api.TadaAPI.get_consumption", return_value={"data": []}
+        "custom_components.tada.api.TadaAPI.get_consumption", new_callable=AsyncMock, return_value={"data": []}
     ), patch(
-        "custom_components.tada.api.TadaAPI.get_power_events", return_value={
+        "custom_components.tada.api.TadaAPI.get_power_events", new_callable=AsyncMock, return_value={
             "last30Days": {
                 "alarmsCount": 5, "cutoffsCount": 1,
                 "alarms": [{"date": "2026-03-01", "type": "alarm"}],
