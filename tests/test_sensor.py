@@ -54,8 +54,8 @@ async def test_sensor_creation_and_state(
         return MOCK_COORDINATOR_DATA
 
     # Patch DataUpdateCoordinator.__init__ to inject our mock update_method.
-    # This ensures coordinator.data is set to MOCK_COORDINATOR_DATA on first refresh,
-    # so sensors see real values when added to HA.
+    # The coordinator is created BEFORE platforms are forwarded in __init__.py,
+    # so this ensures async_config_entry_first_refresh populates coordinator.data.
     original_init = DataUpdateCoordinator.__init__
 
     def patched_duc_init(self, *args, **kwargs):
@@ -77,6 +77,14 @@ async def test_sensor_creation_and_state(
         entry.add_to_hass(hass)
 
         assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Entities are registered AFTER async_config_entry_first_refresh, so they
+        # miss the first coordinator update signal. Trigger a second refresh now so
+        # that _handle_coordinator_update fires on all registered sensor entities,
+        # populating self._state from coordinator.data.
+        coordinator = hass.data[DOMAIN]["coordinator"]
+        await coordinator.async_refresh()
         await hass.async_block_till_done()
 
     # Verify that power events sensors exist in the entity registry
