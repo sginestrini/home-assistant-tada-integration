@@ -65,6 +65,8 @@ class TadaPeriodValidBinary(TadaPeriodBinary):
 
     @property
     def is_on(self):
+        if not self.coordinator.data:
+            return None
         checks = self.coordinator.data.get("period_checks", {})
         v = checks.get(self._key, {})
         return bool(v.get("valid"))
@@ -78,6 +80,8 @@ class TadaPeriodReliableBinary(TadaPeriodBinary):
 
     @property
     def is_on(self):
+        if not self.coordinator.data:
+            return None
         checks = self.coordinator.data.get("period_checks", {})
         v = checks.get(self._key, {})
         return bool(v.get("reliable"))
@@ -91,6 +95,8 @@ class TadaPeriodFullCoverageBinary(TadaPeriodBinary):
 
     @property
     def is_on(self):
+        if not self.coordinator.data:
+            return None
         checks = self.coordinator.data.get("period_checks", {})
         v = checks.get(self._key, {})
         return bool(v.get("hasFullCoverage"))
@@ -107,11 +113,15 @@ class TadaSubscriptionOnlineBinary(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
+        if not self.coordinator.data:
+            return None
         status = self.coordinator.data.get("subscription_status", {})
         return str(status.get("status", "")).upper() == "ONLINE"
 
     @property
     def extra_state_attributes(self):
+        if not self.coordinator.data:
+            return {"status": None}
         status = self.coordinator.data.get("subscription_status", {})
         return {"status": status.get("status")}
 
@@ -127,10 +137,14 @@ class TadaPowerMeterStatusBinary(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
+        if not self.coordinator.data:
+            return None
         status = self.coordinator.data.get("power_meter_status", {})
         return str(status.get("status", "")).upper() == "OK"
 
     @property
     def extra_state_attributes(self):
+        if not self.coordinator.data:
+            return {"status": None}
         status = self.coordinator.data.get("power_meter_status", {})
         return {"status": status.get("status")}

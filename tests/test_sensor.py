@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, AsyncMock
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.tada.const import DOMAIN
 
@@ -49,25 +50,24 @@ async def test_sensor_creation_and_state(
 ):
     """Test that the power event sensors are created and populated correctly."""
 
-    # Patch the coordinator's update method to return our controlled data
-    with patch(
-        "custom_components.tada.__init__.async_setup_entry",
-        wraps=None,
-    ):
-        pass  # Just checking import works
-
-    # The cleanest approach: mock the entire update_data coroutine passed to the coordinator
     async def mock_async_update_data():
         return MOCK_COORDINATOR_DATA
+
+    # Patch DataUpdateCoordinator.__init__ to inject our mock update_method.
+    # This ensures coordinator.data is set to MOCK_COORDINATOR_DATA on first refresh,
+    # so sensors see real values when added to HA.
+    original_init = DataUpdateCoordinator.__init__
+
+    def patched_duc_init(self, *args, **kwargs):
+        kwargs["update_method"] = mock_async_update_data
+        original_init(self, *args, **kwargs)
 
     with patch(
         "custom_components.tada.TadaAPI.login", new_callable=AsyncMock
     ), patch(
         "custom_components.tada.ws.TadaWSClient.start", new_callable=AsyncMock
-    ), patch(
-        "custom_components.tada.DataUpdateCoordinator._async_refresh",
-        new_callable=AsyncMock,
-        return_value=None,
+    ), patch.object(
+        DataUpdateCoordinator, "__init__", patched_duc_init
     ):
         entry = MockConfigEntry(
             domain=DOMAIN,
@@ -76,25 +76,8 @@ async def test_sensor_creation_and_state(
         )
         entry.add_to_hass(hass)
 
-        # Manually inject coordinator data by patching async_config_entry_first_refresh
-        with patch(
-            "homeassistant.helpers.update_coordinator.DataUpdateCoordinator.async_config_entry_first_refresh",
-            new_callable=AsyncMock,
-        ) as mock_refresh:
-            # After integration sets up coordinator, we inject the data
-            async def side_effect(coordinator=None):
-                from custom_components.tada import DOMAIN as TADA_DOMAIN
-                # Walk through hass.data to find coordinator once integration registers it
-                pass
-
-            assert await hass.config_entries.async_setup(entry.entry_id)
-            await hass.async_block_till_done()
-
-            # Manually set coordinator data and trigger update
-            coordinator = hass.data[DOMAIN]["coordinator"]
-            coordinator.data = MOCK_COORDINATOR_DATA
-            await coordinator.async_refresh()
-            await hass.async_block_till_done()
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
 
     # Verify that power events sensors exist in the entity registry
     registry = er.async_get(hass)
