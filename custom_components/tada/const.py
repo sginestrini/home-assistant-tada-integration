@@ -1,4 +1,6 @@
 DOMAIN = "tada"
+MANUFACTURER = "Tada / Magie"
+MODEL = "Tada Energy Monitor"
 
 COGNITO_URL = "https://cognito-idp.eu-west-1.amazonaws.com/"
 DEFAULT_CLIENT_ID = "315bgoo27jq3bhr1aicgcl43t1"
