@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Test/cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Build/dist
+dist/
+build/
+*.egg-info/
+
+# IDEs/editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local env and secrets
+.env
+.env.*
+.secrets.yaml
+
+# Logs
+*.log
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.pnp.*
+
+# Home Assistant / HACS
+.homeassistant
+.home-assistant
+.storage/
+*.storage
+cards/node_modules/
+cards/dist/
+cards/build/
+
+# Misc
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary
+tmp/
+
+# End of .gitignore
