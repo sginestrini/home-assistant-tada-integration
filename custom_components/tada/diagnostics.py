@@ -30,9 +30,9 @@ def _limited(data: Any) -> Any:
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> Dict[str, Any]:
     """Return diagnostics for a config entry, with secrets redacted and payloads trimmed."""
-    data = hass.data.get(DOMAIN, {})
-    coordinator = data.get("coordinator")
-    api = data.get("api")
+    runtime_data = getattr(entry, "runtime_data", None)
+    coordinator = runtime_data.coordinator if runtime_data else None
+    api = runtime_data.api if runtime_data else None
 
     entry_info = {
         "title": entry.title,

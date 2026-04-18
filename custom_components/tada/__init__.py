@@ -1,5 +1,6 @@
 import logging
 import time
+from dataclasses import dataclass
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -25,7 +26,16 @@ from .utils import parse_hhmm, is_time_in_range
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+
+@dataclass
+class TadaRuntimeData:
+    """Runtime data for the Tada integration."""
+
+    api: TadaAPI
+    coordinator: DataUpdateCoordinator
+    ws_client: TadaWSClient | None
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     username = entry.data["username"]
     password = entry.data["password"]
@@ -94,8 +104,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 # Keep other previously fetched groups untouched.
                 try:
                     data["consumption_today"] = {"data": []}
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _LOGGER.debug("Tada: failed to clear consumption_today: %s", exc)
                 # Persist snapshot and exit update without REST polling.
                 previous_data = data
                 first_run = False
@@ -118,7 +128,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 # Period check for yesterday
                 try:
                     data.setdefault("period_checks", {})["yesterday"] = await api.get_period_check("yesterday")
-                except Exception:
+                except Exception as exc:
+                    _LOGGER.debug("Tada: period_check for 'yesterday' failed: %s", exc)
                     data.setdefault("period_checks", {})["yesterday"] = {}
                 # Summary yesterday when enabled
                 opts_y = entry.options or {}
@@ -155,7 +166,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     # Period checks
                     try:
                         data.setdefault("period_checks", {})[key_suffix] = await api.get_period_check(param)
-                    except Exception:
+                    except Exception as exc:
+                        _LOGGER.debug("Tada: period_check for '%s' failed: %s", key_suffix, exc)
                         data.setdefault("period_checks", {})[key_suffix] = {}
                     await _fetch(f"consumption_{key_suffix}", api.get_consumption(param), {"data": []})
                     await _fetch(f"timebands_{key_suffix}", api.get_timebands(param), {"data": []})
@@ -194,7 +206,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                         data.setdefault("period_checks", {})[custom_key] = await api.get_period_check(
                             "custom", from_date=custom_from, to_date=custom_to
                         )
-                    except Exception:
+                    except Exception as exc:
+                        _LOGGER.debug("Tada: period_check for custom failed: %s", exc)
                         data.setdefault("period_checks", {})[custom_key] = {}
                     if opts.get("summary_custom", False):
                         await _fetch(
@@ -221,23 +234,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     await coordinator.async_config_entry_first_refresh()
 
-    # store core objects first so platforms can access them
-    hass.data[DOMAIN] = {
-        "api": api,
-        "coordinator": coordinator,
-        "ws_token": api.ws_token,
-        "ws_client": None,
-    }
-
-    # create and start websocket client now
+    # Create websocket client
+    ws_client: TadaWSClient | None = None
     try:
         ws_client = TadaWSClient(hass, api)
         await ws_client.start()
-        hass.data[DOMAIN]["ws_client"] = ws_client
-        _LOGGER.debug("Tada: websocket client started and stored in hass.data")
+        _LOGGER.debug("Tada: websocket client started")
     except Exception as exc:
         _LOGGER.warning("Tada: failed to start websocket client: %s", exc)
         # keep going so REST sensors still load
+
+    # Store runtime data on the config entry
+    entry.runtime_data = TadaRuntimeData(
+        api=api,
+        coordinator=coordinator,
+        ws_client=ws_client,
+    )
 
     # Reload the entry on options change and proactively clean up deselected periods
     async def async_options_updated(hass, entry):
@@ -258,15 +270,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 for ent in entries:
                     try:
                         ent_reg.async_remove(ent.entity_id)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _LOGGER.debug("Tada cleanup: failed removing entity %s: %s", ent.entity_id, exc)
                 # If device has no more entities, remove the device
                 remaining = er.async_entries_for_device(ent_reg, device.id, include_disabled_entities=True)
                 if not remaining:
                     try:
                         dev_reg.async_remove_device(device.id)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _LOGGER.debug("Tada cleanup: failed removing device %s: %s", device.id, exc)
             except Exception:
                 _LOGGER.debug("Tada cleanup: failed removing device/entities for suffix %s", device_suffix, exc_info=True)
 
@@ -311,8 +323,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                         if isinstance(uid, str) and uid.startswith(f"tada_{subscription_id}_summary_{period_key}_"):
                             try:
                                 ent_reg.async_remove(ent.entity_id)
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                _LOGGER.debug("Tada cleanup: failed removing summary entity %s: %s", ent.entity_id, exc)
                 except Exception:
                     _LOGGER.debug("Tada cleanup: failed removing summary-only entities for %s", period_key, exc_info=True)
         except Exception:
@@ -337,8 +349,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                             if isinstance(uid, str) and uid.startswith(f"tada_{subscription_id}_summary_{keep_custom_key}_"):
                                 try:
                                     ent_reg.async_remove(ent.entity_id)
-                                except Exception:
-                                    pass
+                                except Exception as exc:
+                                    _LOGGER.debug("Tada cleanup: failed removing custom summary entity %s: %s", ent.entity_id, exc)
                 except Exception:
                     _LOGGER.debug("Tada cleanup: failed removing summary-only custom entities for %s", keep_custom_key, exc_info=True)
 
@@ -381,12 +393,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .const import PLATFORMS
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        ws_client = hass.data[DOMAIN].get("ws_client")
-        if ws_client:
-            await ws_client.close()
-        hass.data.pop(DOMAIN, None)
+        runtime_data: TadaRuntimeData = entry.runtime_data
+        if runtime_data.ws_client:
+            await runtime_data.ws_client.close()
     return unload_ok

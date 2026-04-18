@@ -8,17 +8,17 @@ from custom_components.tada.const import DOMAIN
 
 # Minimal coordinator data that all sensors expect to find
 MOCK_COORDINATOR_DATA = {
-    "power_latest": {"value": 1.5, "availablePower": 3.0, "powerUsagePercent": 50, "maxAvailablePower": 6.0},
+    "power_latest": {"__time":"2026-03-24T18:14:55.000Z", "value": 0.23, "availablePower": 4.5, "powerUsagePercent": 5, "maxAvailablePower": 5.985},
     "subscription_status": {"status": "active"},
     "power_meter_status": {"ok": True},
-    "consumption_today": {"data": []},
-    "energy_total": None,
+    "consumption_today": {"data": [{"hour":0,"W":95.07,"kWh":0.08,"label":"0-1 h"}], "lastDetection": {"time": "2026-03-24T18:14:55.000Z"}},
+    "energy_total": {"total": 14.43},
     "consumption_yesterday": {"data": []},
-    "historical_yesterday": {},
+    "historical_yesterday": {"data": {"date": "23 marzo 2026", "total": 4.47, "topAppliances": [{"applianceId": 6, "value": 0.67, "percentage": 14.99}]}},
     "timebands_yesterday": {"data": []},
-    "comparisons_average_yesterday": {},
-    "comparisons_previous_yesterday": {},
-    "period_checks": {"yesterday": {}},
+    "comparisons_average_yesterday": {"averageEnergyComparison": -0.05},
+    "comparisons_previous_yesterday": {"previousEnergyComparison": -4.48},
+    "period_checks": {"yesterday": {"valid": True, "reliable": True, "hasFullCoverage": True, "coverageStartDate": "2025-09-01T00:00:00.000Z"}},
     "power_events": {
         "last30Days": {
             "alarmsCount": 5,
@@ -83,7 +83,7 @@ async def test_sensor_creation_and_state(
         # miss the first coordinator update signal. Trigger a second refresh now so
         # that _handle_coordinator_update fires on all registered sensor entities,
         # populating self._state from coordinator.data.
-        coordinator = hass.data[DOMAIN]["coordinator"]
+        coordinator = entry.runtime_data.coordinator
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
@@ -101,19 +101,37 @@ async def test_sensor_creation_and_state(
     assert registry.async_is_registered(cutoffs_90_id)
 
     # Verify states are populated from the mocked coordinator data
-    state_alarms_30 = hass.states.get(alarms_30_id)
-    assert state_alarms_30 is not None
-    assert state_alarms_30.state == "5"
-    assert state_alarms_30.attributes.get("events") == [{"date": "2026-03-01", "type": "alarm"}]
+    # Verify general power values are populated
+    power_value_id = "sensor.tada_current_power"
+    power_state = hass.states.get(power_value_id)
+    assert power_state is not None
+    assert power_state.state == "0.23"
+    
+    usage_percent_id = "sensor.tada_power_usage"
+    usage_state = hass.states.get(usage_percent_id)
+    assert usage_state is not None
+    assert usage_state.state == "5"
 
-    state_cutoffs_30 = hass.states.get(cutoffs_30_id)
-    assert state_cutoffs_30 is not None
-    assert state_cutoffs_30.state == "1"
-
-    state_alarms_90 = hass.states.get(alarms_90_id)
-    assert state_alarms_90 is not None
-    assert state_alarms_90.state == "10"
-
-    state_cutoffs_90 = hass.states.get(cutoffs_90_id)
-    assert state_cutoffs_90 is not None
-    assert state_cutoffs_90.state == "3"
+    max_power_id = "sensor.tada_max_available_power"
+    max_state = hass.states.get(max_power_id)
+    assert max_state is not None
+    assert max_state.state == "5.985"
+    
+    # Verify consumption-today-hourly
+    today_cons_id = "sensor.tada_today_consumption_today"
+    today_state = hass.states.get(today_cons_id)
+    assert today_state is not None
+    assert today_state.state == "0.08"
+    assert today_state.attributes.get("hour_0_kWh") == 0.08
+    
+    # Verify comparison average
+    cmp_avg_id = "sensor.tada_yesterday_yesterday_average_comparison"
+    cmp_avg_state = hass.states.get(cmp_avg_id)
+    assert cmp_avg_state is not None
+    assert cmp_avg_state.state == "-5.0"
+    
+    # Verify coverage state
+    cov_id = "sensor.tada_period_coverage_start"
+    cov_state = hass.states.get(cov_id)
+    assert cov_state is not None
+    assert cov_state.state == "2025-09-01T00:00:00+00:00"

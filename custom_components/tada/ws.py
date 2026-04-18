@@ -28,7 +28,7 @@ class TadaWSClient:
         while True:
             try:
                 # Refresh token before each connection attempt
-                await self._api._ensure_token()
+                await self._api.ensure_authenticated()
                 url = f"{WS_URL}?Authorization={self._api.ws_token}"
 
                 _LOGGER.debug("TadaWSClient connecting to %s", url[:80] + "...")

@@ -1,7 +1,7 @@
+import asyncio
 import json
 import time
 import aiohttp
-import async_timeout
 from typing import Optional
 from datetime import datetime
 from .const import COGNITO_URL, TIMEOUT
@@ -47,7 +47,7 @@ class TadaAPI:
         }
         headers = {**COGNITO_HEADERS,
                    "x-amz-target": "AWSCognitoIdentityProviderService.InitiateAuth"}
-        async with async_timeout.timeout(TIMEOUT):
+        async with asyncio.timeout(TIMEOUT):
             async with self._session.post(COGNITO_URL, json=payload, headers=headers) as resp:
                 if resp.status != 200:
                     raise AuthError(f"InitiateAuth failed: {resp.status}")
@@ -77,7 +77,7 @@ class TadaAPI:
         }
         headers = {**COGNITO_HEADERS,
                    "x-amz-target": "AWSCognitoIdentityProviderService.InitiateAuth"}
-        async with async_timeout.timeout(TIMEOUT):
+        async with asyncio.timeout(TIMEOUT):
             async with self._session.post(COGNITO_URL, json=payload, headers=headers) as resp:
                 if resp.status != 200:
                     raise AuthError(f"Refresh failed: {resp.status}")
@@ -105,13 +105,17 @@ class TadaAPI:
                 # Refresh failed, try full login
                 await self.login()
 
+    async def ensure_authenticated(self):
+        """Public wrapper around token refresh logic for use by other modules."""
+        await self._ensure_token()
+
     def _bearer(self):
         return f"Bearer {self._access_token}"
 
     async def _get(self, url):
         await self._ensure_token()
         headers = {"Authorization": self._bearer()}
-        async with async_timeout.timeout(TIMEOUT):
+        async with asyncio.timeout(TIMEOUT):
             async with self._session.get(url, headers=headers) as resp:
                 if resp.status == 401:
                     await self._refresh_access_token()

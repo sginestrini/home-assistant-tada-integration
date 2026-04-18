@@ -5,6 +5,7 @@ from __future__ import annotations
 APPLIANCES_MAP: dict[int, str] = {
     17: "Stand-by",
     1000: "Altro",
+    10: "Piano cottura",
     6: "Frigorifero",
     2: "Lavastoviglie",
     1: "Lavatrice",

@@ -5,12 +5,15 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, DEVICE_NAME_YESTERDAY, DEVICE_SUFFIX_YESTERDAY
+from .const import DOMAIN, MANUFACTURER, MODEL, DEVICE_NAME_YESTERDAY, DEVICE_SUFFIX_YESTERDAY
 from .mapping import SUMMARY_PERIODS
 from .utils import _monitored_periods, tk_summary_switch
 
 class TadaSummarySwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -28,7 +31,12 @@ class TadaSummarySwitch(CoordinatorEntity, SwitchEntity):
         self._period_key = period_key
         self._attr_name = f"Enable Summary ({period_key})"
         self._attr_unique_id = f"tada_{subscription_id}_summary_switch_{period_key}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, f"{subscription_id}:{device_id_suffix}")}, name=device_name)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{subscription_id}:{device_id_suffix}")},
+            name=device_name,
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+        )
         self._attr_icon = "mdi:toggle-switch"
         self._attr_entity_category = EntityCategory.CONFIG
         # translation key for switch label
@@ -75,9 +83,12 @@ class TadaSummarySwitch(CoordinatorEntity, SwitchEntity):
         }
         return attrs
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
-    data = hass.data.get(DOMAIN) or {}
-    coordinator: DataUpdateCoordinator = data.get("coordinator")
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    coordinator: DataUpdateCoordinator = entry.runtime_data.coordinator
     subscription_id = entry.data.get("subscription_id")
     if not coordinator or not subscription_id:
         return

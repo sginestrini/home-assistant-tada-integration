@@ -13,8 +13,7 @@ from .const import (
 from .api import TadaAPI, AuthError
 
 
-@config_entries.HANDLERS.register(DOMAIN)
-class TadaConfigFlow(config_entries.ConfigFlow):
+class TadaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         if user_input is None:
             return self.async_show_form(
@@ -32,6 +31,30 @@ class TadaConfigFlow(config_entries.ConfigFlow):
 
         data = dict(user_input)
         data.setdefault("client_id", DEFAULT_CLIENT_ID)
+
+        # Validate credentials by attempting a login
+        session = async_get_clientsession(self.hass)
+        api = TadaAPI(
+            session,
+            data["username"],
+            data["password"],
+            data["client_id"],
+            data["subscription_id"],
+            data.get("locale", "it"),
+        )
+        try:
+            await api.login()
+        except AuthError:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({
+                    vol.Required("username"): str,
+                    vol.Required("password"): str,
+                    vol.Required("subscription_id"): str,
+                    vol.Optional("locale", default="it"): str,
+                }),
+                errors={"base": "auth_failed"},
+            )
 
         return self.async_create_entry(title="Tada", data=data)
 
