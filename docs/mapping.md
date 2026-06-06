@@ -5,7 +5,9 @@ Summary entities use ID→name mappings to label sensors in Italian (unknown IDs
 ## Appliances (Elettrodomestici)
 - 17 → Stand-by
 - 1000 → Altro
+- 12 → Macchina del caffè
 - 10 → Piano Cottura
+- 7 → Condizionatore
 - 6 → Frigorifero
 - 2 → Lavastoviglie
 - 1 → Lavatrice
@@ -15,6 +17,7 @@ Summary entities use ID→name mappings to label sensors in Italian (unknown IDs
 - 6 → Stand-by
 - 1000 → Altro
 - 3 → Cucinare
+- 2 → Raffrescare
 - 1 → Lavare
 
 ## Summary entities per item
