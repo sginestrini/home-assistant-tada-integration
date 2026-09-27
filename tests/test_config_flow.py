@@ -126,6 +126,55 @@ async def test_options_flow(hass):
     )
 
     assert result2["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert result2["data"]["monitor_last_week"] == True
-    assert result2["data"]["quiet_window_enabled"] == True
+    assert result2["data"]["monitor_last_week"] is True
+    assert result2["data"]["quiet_window_enabled"] is True
     assert result2["data"]["quiet_window_from"] == "22:00"
+    assert result2["data"]["quiet_window_to"] == "06:00"
+
+
+async def test_options_flow_rejects_invalid_custom_dates(hass):
+    """Test invalid custom date range is rejected."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"username": "test", "password": "password", "subscription_id": "sub"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={
+            "monitor_custom": True,
+            "custom_from": "2026-02-10",
+            "custom_to": "2026-02-05",
+        },
+    )
+
+    assert result2["type"] == data_entry_flow.FlowResultType.FORM
+    assert result2["errors"] == {"base": "invalid_date"}
+
+
+async def test_options_flow_rejects_invalid_quiet_window(hass):
+    """Test invalid quiet-window values are rejected."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"username": "test", "password": "password", "subscription_id": "sub"},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={
+            "quiet_window_enabled": True,
+            "quiet_window_from": "invalid",
+            "quiet_window_to": "06:00",
+        },
+    )
+
+    assert result2["type"] == data_entry_flow.FlowResultType.FORM
+    assert result2["errors"] == {"base": "invalid_quiet_window"}

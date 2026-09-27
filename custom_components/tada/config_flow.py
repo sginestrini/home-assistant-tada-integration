@@ -13,6 +13,45 @@ from .const import (
 from .api import TadaAPI, AuthError
 
 
+def _validate_ids(value: str) -> str | None:
+    """Normalize comma-separated numeric IDs or return None for invalid input."""
+    if value is None:
+        return ""
+    if not str(value).strip():
+        return ""
+    try:
+        parts = [part.strip() for part in str(value).split(",") if part.strip()]
+        for part in parts:
+            int(part)
+        return ",".join(parts)
+    except Exception:
+        return None
+
+
+def _validate_custom_dates(custom_from: str, custom_to: str) -> bool:
+    """Validate custom monitoring dates. Returns True when the range is valid."""
+    if not custom_from or not custom_to:
+        return False
+    try:
+        from_dt = datetime.strptime(custom_from, "%Y-%m-%d").date()
+        to_dt = datetime.strptime(custom_to, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return from_dt <= to_dt
+
+
+def _validate_quiet_window(quiet_from: str, quiet_to: str) -> bool:
+    """Validate a quiet window range. Start and end must both be valid HH:MM and not equal."""
+    if not quiet_from or not quiet_to:
+        return False
+    try:
+        start_time = datetime.strptime(quiet_from, "%H:%M").time()
+        end_time = datetime.strptime(quiet_to, "%H:%M").time()
+    except ValueError:
+        return False
+    return start_time != end_time
+
+
 class TadaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         if user_input is None:
@@ -158,17 +197,6 @@ class TadaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if user_input is None:
                 return self.async_show_form(step_id="init", data_schema=schema)
 
-            # Validate enabled IDs format (optional)
-            def _validate_ids(s: str) -> str | None:
-                if not s:
-                    return ""
-                try:
-                    parts = [p.strip() for p in s.split(",") if p.strip()]
-                    for p in parts:
-                        int(p)
-                    return ",".join(parts)
-                except Exception:
-                    return None
             ap_ids = _validate_ids(user_input.get("enabled_appliances", ""))
             act_ids = _validate_ids(user_input.get("enabled_activities", ""))
             if ap_ids is None:
@@ -176,32 +204,17 @@ class TadaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if act_ids is None:
                 return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_activity_ids"})
 
-            # Validate custom period dates if monitor_custom is enabled
             monitor_custom = bool(user_input.get("monitor_custom", defaults["monitor_custom"]))
             custom_from = user_input.get("custom_from", defaults["custom_from"]) or ""
             custom_to = user_input.get("custom_to", defaults["custom_to"]) or ""
-            if monitor_custom:
-                # Both dates required and must be YYYY-MM-DD, from <= to
-                try:
-                    if not custom_from or not custom_to:
-                        raise ValueError("missing")
-                    dt_from = datetime.strptime(custom_from, "%Y-%m-%d").date()
-                    dt_to = datetime.strptime(custom_to, "%Y-%m-%d").date()
-                    if dt_from > dt_to:
-                        raise ValueError("order")
-                except Exception:
-                    return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_date"})
+            if monitor_custom and not _validate_custom_dates(custom_from, custom_to):
+                return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_date"})
 
-            # Validate quiet window times if enabled
             quiet_enabled = bool(user_input.get("quiet_window_enabled", defaults["quiet_window_enabled"]))
             quiet_from = user_input.get("quiet_window_from", defaults["quiet_window_from"]) or ""
             quiet_to = user_input.get("quiet_window_to", defaults["quiet_window_to"]) or ""
-            if quiet_enabled:
-                try:
-                    datetime.strptime(quiet_from, "%H:%M")
-                    datetime.strptime(quiet_to, "%H:%M")
-                except Exception:
-                    return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_quiet_window"})
+            if quiet_enabled and not _validate_quiet_window(quiet_from, quiet_to):
+                return self.async_show_form(step_id="init", data_schema=schema, errors={"base": "invalid_quiet_window"})
 
             # Save monitoring selections and global ID selections
             return self.async_create_entry(title="", data={
