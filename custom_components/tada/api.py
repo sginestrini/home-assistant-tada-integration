@@ -63,7 +63,7 @@ class TadaAPI:
         self._refresh_token = auth.get("RefreshToken")
         expires_in = auth.get("ExpiresIn", 3600)
         self._access_exp_ts = time.time() + expires_in - 60
-        if not self._access_token or not self._refresh_token:
+        if not self._id_token or not self._refresh_token:
             raise AuthError("Missing tokens from Cognito response.")
         return True
 
@@ -91,11 +91,11 @@ class TadaAPI:
         self._access_token = auth.get("AccessToken")
         expires_in = auth.get("ExpiresIn", 3600)
         self._access_exp_ts = time.time() + expires_in - 60
-        if not self._access_token or not self._id_token:
+        if not self._id_token:
             raise AuthError("Missing tokens from refresh response.")
 
     async def _ensure_token(self):
-        if not self._access_token:
+        if not self._id_token:
             await self.login()
             return
         if self._access_exp_ts and time.time() >= self._access_exp_ts:
@@ -110,7 +110,9 @@ class TadaAPI:
         await self._ensure_token()
 
     def _bearer(self):
-        return f"Bearer {self._access_token}"
+        # TaDa API accepts only the Cognito ID token since the Oct-2026 backend update
+        # (see https://github.com/sginestrini/home-assistant-tada-integration/issues/2)
+        return f"Bearer {self._id_token}"
 
     async def _get(self, url):
         await self._ensure_token()
