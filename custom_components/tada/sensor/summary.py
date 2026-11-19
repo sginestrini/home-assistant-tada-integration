@@ -3,7 +3,6 @@ import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from ..const import DOMAIN, MANUFACTURER, MODEL
@@ -76,8 +75,10 @@ class TadaSummaryItemSensor(TadaBaseSensor):
         self._attr_has_entity_name = False
         cat_slug = "attivita" if category == "activity" else "elettrodomestici"
         mode_slug = "kwh" if mode == "value" else "percentuale"
-        label_slug = slugify(display_label)
-        self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{label_slug}_{mode_slug}"
+        # Entity ids cannot contain hyphens; unique_id keeps the original slug
+        # so existing registry entries remain matched.
+        object_slug = label_slug.replace("-", "_")
+        self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{object_slug}_{mode_slug}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
@@ -105,39 +106,3 @@ class TadaSummaryItemSensor(TadaBaseSensor):
         self._update_from_coordinator()
         self.async_write_ha_state()
 
-    async def async_added_to_hass(self):
-        # Call base to populate initial state immediately
-        try:
-            await super().async_added_to_hass()
-        except Exception:
-            pass
-        # Ensure desired entity_id naming is applied at creation
-        try:
-            ent_reg = er.async_get(self.hass)
-            cat_slug = "attivita" if self._category == "activity" else "elettrodomestici"
-            mode_slug = "kwh" if self._mode == "value" else "percentuale"
-            # Use display label from unique_id segment or device maps for robustness
-            label_slug = None
-            try:
-                # unique_id contains label_slug; extract after category
-                parts = self._attr_unique_id.split("_")
-                # unique_id: tada_<sub>_summary_<period>_<category>_<label_slug>_<mode>
-                if len(parts) >= 7:
-                    label_slug = parts[-2]
-            except Exception:
-                label_slug = None
-            if not label_slug:
-                # fallback to maps
-                if self._category == "appliance":
-                    label_slug = slugify(APPLIANCES_MAP.get(self._item_id, str(self._item_id)))
-                else:
-                    label_slug = slugify(ACTIVITIES_MAP.get(self._item_id, str(self._item_id)))
-            desired = f"sensor.tada_{self._period_key}_{cat_slug}_{label_slug}_{mode_slug}"
-            entry = ent_reg.async_get(self.entity_id)
-            if entry and entry.entity_id != desired:
-                try:
-                    await ent_reg.async_update_entity(entry.entity_id, new_entity_id=desired)
-                except Exception:
-                    pass
-        except Exception:
-            pass
