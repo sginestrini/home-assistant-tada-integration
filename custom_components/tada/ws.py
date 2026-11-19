@@ -27,7 +27,7 @@ class TadaWSClient:
         
         while True:
             try:
-                # Refresh token before each connection attempt
+                # Ensure the ID token is fresh (refresh/login only near expiry)
                 await self._api.ensure_authenticated()
                 url = f"{WS_URL}?Authorization={self._api.ws_token}"
 

@@ -52,8 +52,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     }
 
     api_info = {
-        "has_token": bool(getattr(api, "_access_token", None)),
         "has_id_token": bool(getattr(api, "_id_token", None)),
+        "has_refresh_token": bool(getattr(api, "_refresh_token", None)),
     }
 
     return {

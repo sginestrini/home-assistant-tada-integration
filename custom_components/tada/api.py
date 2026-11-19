@@ -32,9 +32,8 @@ class TadaAPI:
         self._locale = locale
 
         self._id_token: Optional[str] = None
-        self._access_token: Optional[str] = None
         self._refresh_token: Optional[str] = None
-        self._access_exp_ts: Optional[float] = None
+        self._token_exp_ts: Optional[float] = None
 
     async def login(self):
         payload = {
@@ -59,15 +58,16 @@ class TadaAPI:
             raise AuthError("AuthenticationResult missing; interactive challenge not supported.")
 
         self._id_token = auth.get("IdToken")
-        self._access_token = auth.get("AccessToken")
         self._refresh_token = auth.get("RefreshToken")
         expires_in = auth.get("ExpiresIn", 3600)
-        self._access_exp_ts = time.time() + expires_in - 60
-        if not self._access_token or not self._refresh_token:
+        # Cognito issues IdToken/RefreshToken with a shared ExpiresIn; the ID token
+        # is the only credential the API accepts (see issue #2).
+        self._token_exp_ts = time.time() + expires_in - 60
+        if not self._id_token or not self._refresh_token:
             raise AuthError("Missing tokens from Cognito response.")
         return True
 
-    async def _refresh_access_token(self):
+    async def _refresh_tokens(self):
         if not self._refresh_token:
             raise AuthError("No refresh token available.")
         payload = {
@@ -88,19 +88,18 @@ class TadaAPI:
         if not auth:
             raise AuthError("Refresh AuthenticationResult missing.")
         self._id_token = auth.get("IdToken")
-        self._access_token = auth.get("AccessToken")
         expires_in = auth.get("ExpiresIn", 3600)
-        self._access_exp_ts = time.time() + expires_in - 60
-        if not self._access_token or not self._id_token:
+        self._token_exp_ts = time.time() + expires_in - 60
+        if not self._id_token:
             raise AuthError("Missing tokens from refresh response.")
 
     async def _ensure_token(self):
-        if not self._access_token:
+        if not self._id_token:
             await self.login()
             return
-        if self._access_exp_ts and time.time() >= self._access_exp_ts:
+        if self._token_exp_ts and time.time() >= self._token_exp_ts:
             try:
-                await self._refresh_access_token()
+                await self._refresh_tokens()
             except AuthError:
                 # Refresh failed, try full login
                 await self.login()
@@ -109,17 +108,26 @@ class TadaAPI:
         """Public wrapper around token refresh logic for use by other modules."""
         await self._ensure_token()
 
-    def _bearer(self):
-        return f"Bearer {self._access_token}"
+    def _auth_header(self):
+        # TaDa API accepts only the Cognito ID token since the Oct-2026 backend update
+        # (see https://github.com/sginestrini/home-assistant-tada-integration/issues/2).
+        # The WebSocket uses the same credential (ws_token below) - keep them in lockstep.
+        return f"Bearer {self._id_token}"
 
     async def _get(self, url):
         await self._ensure_token()
-        headers = {"Authorization": self._bearer()}
+        headers = {"Authorization": self._auth_header()}
         async with asyncio.timeout(TIMEOUT):
             async with self._session.get(url, headers=headers) as resp:
                 if resp.status == 401:
-                    await self._refresh_access_token()
-                    async with self._session.get(url, headers={"Authorization": self._bearer()}) as resp2:
+                    # Server rejected our token early: drop the expiry marker so any
+                    # concurrent _ensure_token also re-authenticates, then re-auth.
+                    self._token_exp_ts = 0.0
+                    try:
+                        await self._refresh_tokens()
+                    except AuthError:
+                        await self.login()
+                    async with self._session.get(url, headers={"Authorization": self._auth_header()}) as resp2:
                         resp2.raise_for_status()
                         return await resp2.json()
                 resp.raise_for_status()
