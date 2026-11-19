@@ -75,8 +75,10 @@ class TadaSummaryItemSensor(TadaBaseSensor):
         self._attr_has_entity_name = False
         cat_slug = "attivita" if category == "activity" else "elettrodomestici"
         mode_slug = "kwh" if mode == "value" else "percentuale"
-        label_slug = slugify(display_label)
-        self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{label_slug}_{mode_slug}"
+        # Entity ids cannot contain hyphens; unique_id keeps the original slug
+        # so existing registry entries remain matched.
+        object_slug = label_slug.replace("-", "_")
+        self._attr_suggested_object_id = f"tada_{period_key}_{cat_slug}_{object_slug}_{mode_slug}"
 
     def _update_from_coordinator(self):
         data = self.coordinator.data or {}
