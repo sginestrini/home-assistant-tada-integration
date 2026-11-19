@@ -3,4 +3,3 @@ pytest-asyncio>=0.23.0
 pytest-homeassistant-custom-component
 aioresponses>=0.7.6
 tzdata; sys_platform == "win32"
-
