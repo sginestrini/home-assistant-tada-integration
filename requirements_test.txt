@@ -1,3 +1,2 @@
 pytest-homeassistant-custom-component==0.13.375
-aioresponses>=0.7.6
 tzdata; sys_platform == "win32"
