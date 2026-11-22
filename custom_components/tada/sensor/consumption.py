@@ -107,6 +107,15 @@ class TadaConsumptionTodayHourlySensor(TadaBaseSensor):
         if self._quiet_window_enabled and self._quiet_window_from_t and self._quiet_window_to_t:
             self._schedule_quiet_window_callbacks()
 
+    @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity_id changes (HA 2026.11+, issue #1).
+
+        Quiet-window callbacks are plain time-of-day triggers, not keyed on
+        this entity's entity_id, and survive the rename untouched.
+        """
+        super().async_entity_id_changed(old_entity_id)
+
     async def async_will_remove_from_hass(self):
         # Cancel scheduled callbacks
         try:
@@ -222,6 +231,15 @@ class TadaLifetimeEnergySensor(TadaBaseSensor):
         # Compute an initial state from current coordinator data
         self._update_from_coordinator()
         self.async_write_ha_state()
+
+    @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity_id changes (HA 2026.11+, issue #1).
+
+        Persisted state lives in a Store keyed on the subscription_id, not
+        the entity_id, so nothing needs re-keying on a rename.
+        """
+        super().async_entity_id_changed(old_entity_id)
 
     async def _persist(self):
         if not self._store:

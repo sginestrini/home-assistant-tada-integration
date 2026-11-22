@@ -65,6 +65,16 @@ class TadaInstantPowerSensor(SensorEntity):
             self._unsub()
             self._unsub = None
 
+    @callback
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity_id changes (HA 2026.11+, issue #1).
+
+        Nothing in this entity is keyed on its own entity_id: the dispatcher
+        signal is the constant 'tada_instant_power', so the subscription
+        survives a rename untouched.
+        """
+        super().async_entity_id_changed(old_entity_id)
+
 
 class TadaPowerEventSensor(TadaBaseSensor):
     """Sensor tracking power event counts (alarms or cutoffs) for a specific period."""
